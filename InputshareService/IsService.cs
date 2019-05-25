@@ -90,6 +90,7 @@ namespace InputshareService
                 namedIpc.RequestedState += NamedIpc_RequestedState;
                 namedIpc.Ipc_Disconnect += NamedIpc_Disconnect;
                 namedIpc.RequestedSetDownloadFolder += NamedIpc_RequestedSetDownloadFolder;
+                namedIpc.RequestedDownloadFolder += NamedIpc_RequestedDownloadFolder;
                 ISLogger.Write("Service->Named IPC server started");
             }catch(Exception ex)
             {
@@ -175,6 +176,12 @@ namespace InputshareService
             lastServer = lastEp;
             keepRetryingConnection = true;
             Ipc_Connect(lastEp, lastName, lastGuid);
+        }
+
+        private void NamedIpc_RequestedDownloadFolder(object sender, EventArgs e)
+        {
+            ISLogger.Write($"NamedIpc->Requested download folder");
+            namedIpc.SendDownloadFolderLocation(cSocket.FileReceivePath);
         }
 
         private void NamedIpc_RequestedSetDownloadFolder(object sender, string path)

@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using System.Net;
 using System.Diagnostics;
+using System.Threading;
 
 namespace Inputshare
 {
@@ -95,9 +96,11 @@ namespace Inputshare
                 ipcClient.MessageReceived += IpcClient_MessageReceived;
                 ipcClient.Connected += IpcClient_Connected;
                 ipcClient.Disconnected += IpcClient_Disconnected;
+                ipcClient.ReceivedDownloadFolder += IpcClient_ReceivedDownloadFolder;
                 ipcClient.Connect(3000);
                 this.Invoke(new Action(() => { IpcDisconnectedPanel.Hide(); }));
                 ipcClient.SendObject(NIpcBasicMessage.GetState);
+                ipcClient.SendObject(NIpcBasicMessage.RequestDownloadFolder);
             }catch(Exception ex)
             {
                 SetIpcStatusLabelText("Failed to connect to IPC");
@@ -106,6 +109,17 @@ namespace Inputshare
                 Exit();
                 return;
             }
+        }
+
+        private void IpcClient_ReceivedDownloadFolder(object sender, string folder)
+        {
+            if (this.InvokeRequired)
+            {
+                this.Invoke(new Action(() => { IpcClient_ReceivedDownloadFolder(sender, folder); }));
+                return;
+            }
+
+            DownloadFolderTextBox.Text = folder;
         }
 
         private void IpcClient_Disconnected(object sender, EventArgs e)
@@ -136,7 +150,7 @@ namespace Inputshare
             if (message == NIpcBasicMessage.Connected)
             {
                 OnConnect();
-                Task.Run(() => { ipcClient.SendObject(NIpcBasicMessage.GetState); });
+                ipcClient.SendObject(NIpcBasicMessage.GetState);
             }
             else if (message == NIpcBasicMessage.ConnectionError || message == NIpcBasicMessage.ConnectionFailed
                || message == NIpcBasicMessage.Disconnected)
@@ -279,9 +293,8 @@ namespace Inputshare
             if(fd.ShowDialog() == DialogResult.OK && !string.IsNullOrWhiteSpace(fd.SelectedPath))
             {
                 ipcClient.SendObject(new NIpcSetDownloadFolder(fd.SelectedPath));
+                ipcClient.SendObject(NIpcBasicMessage.RequestDownloadFolder);
             }
-
-            
         }
     }
 }

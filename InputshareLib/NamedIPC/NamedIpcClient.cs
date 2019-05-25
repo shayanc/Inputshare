@@ -13,6 +13,7 @@ namespace InputshareLib.NamedIPC
 
         public event EventHandler Disconnected;
         public event EventHandler Connected;
+        public event EventHandler<string> ReceivedDownloadFolder;
 
         private object threadLock = new object();
 
@@ -36,34 +37,52 @@ namespace InputshareLib.NamedIPC
             {
                 return;
             }
+
             lock (threadLock)
             {
                 byte[] data = ObjectSerializer.Serialize(obj);
-                //ISLogger.Write($"NamedIPC->sent {data.Length} bytes");
-                clientWrite.Write(data, 0, data.Length);
+                ISLogger.Write($"NamedIPC->sent {data.Length} bytes");
+                clientWrite.BeginWrite(data, 0, data.Length, ClientWriteCallback, null);
             }
-            
+        }
+
+        private void ClientWriteCallback(IAsyncResult ar)
+        {
+            //TODO
+            try
+            {
+                clientWrite.EndWrite(ar);
+            }
+            catch (Exception) { }
         }
 
         private void ClientReadCallback(IAsyncResult ar)
         {
-            lock (threadLock)
+            try
             {
-                if (disposedValue)
-                    return;
-
-                int bIn = clientRead.EndRead(ar);
-
-                if (bIn == 0)
+                lock (threadLock)
                 {
-                    OnConnectionError();
-                    return;
+                    if (disposedValue)
+                        return;
+
+                    int bIn = clientRead.EndRead(ar);
+
+                    if (bIn == 0)
+                    {
+                        OnConnectionError();
+                        return;
+                    }
+                    ProcessObject(clientBuff);
+                    if (disposedValue)
+                        return;
+                    clientRead.BeginRead(clientBuff, 0, clientBuff.Length, ClientReadCallback, null);
                 }
-                ProcessObject(clientBuff);
-                if (disposedValue)
-                    return;
-                clientRead.BeginRead(clientBuff, 0, clientBuff.Length, ClientReadCallback, null);
+            }catch(Exception ex)
+            {
+                ISLogger.Write($"NamedIpc->Read error: {ex.Message}");
+                OnConnectionError();
             }
+            
         }
 
         private void ProcessObject(byte[] data)
@@ -80,8 +99,10 @@ namespace InputshareLib.NamedIPC
                 }else if(objType == typeof(NIpcBasicMessage))
                 {
                     NIpcBasicMessage msg = (NIpcBasicMessage)obj;
-                    //ISLogger.Write($"Service: {msg}");
                     HandleBasicMessage(msg);
+                }else if(objType == typeof(NIpcDownloadFolderLocation))
+                {
+                    ReceivedDownloadFolder?.Invoke(this, (obj as NIpcDownloadFolderLocation).Folder);
                 }
 
             }catch(Exception ex)
@@ -101,8 +122,6 @@ namespace InputshareLib.NamedIPC
                 ISLogger.Write($"NamedIpc->Error handling message: {ex.Message}");
             }
         }
-
-        
 
         private void OnConnectionError()
         {

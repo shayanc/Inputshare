@@ -87,7 +87,7 @@ namespace InputshareLib
             }
             ISLogger.Write($"ServerSocket->Disconnecting");
             disconnecting = true;
-            tcpSocket.Disconnect(true);
+            tcpSocket.Dispose();
             SetState(ServerSocketState.Idle);
             Disconnected?.Invoke(this, null);
         }
