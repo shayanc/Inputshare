@@ -1,6 +1,7 @@
 ﻿using InputshareLib.Input;
 using InputshareLib.Net.Messages;
 using System;
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -181,6 +182,10 @@ namespace InputshareLib
                         case MessageType.SetClipboardText:
                             ProcessCbCopy(ClipboardSetTextMessage.FromBytes(socketBuffer));
                             break;
+                        case MessageType.FileTransferPart:
+                            FileTransferPartMessage fileMsg = FileTransferPartMessage.FromBytes(ref socketBuffer);
+                            ReadFilePart(fileMsg);
+                            break;
 
                         default:
                             MessageReceived?.Invoke(this, cmd);
@@ -203,11 +208,27 @@ namespace InputshareLib
                     return;
 
                 if (!ex.Message.Contains("WSACancelBlockingCall")){
-                    ISLogger.Write("Serversocket error: " + ex.Message);
+                    //ISLogger.Write("Serversocket error: " + ex.Message);
                 }
                 OnConnectionError(ex, ServerSocketState.ConnectionError);
             }
             
+        }
+
+        private void ReadFilePart(FileTransferPartMessage fileMsg)
+        {
+            try
+            {
+                //TODO
+                using (FileStream fs = File.OpenWrite("C:\\" + fileMsg.FileName))
+                {
+                    fs.Seek(fileMsg.PartNumber * Settings.FileTransferPartSize, SeekOrigin.Begin);
+                    fs.Write(fileMsg.PartData, 0, fileMsg.PartData.Length);
+                }
+            }catch(Exception ex)
+            {
+                ISLogger.Write($"An error occurred while reading file from server: {ex.Message}");
+            }
         }
 
         public void SendCommand(MessageType type)

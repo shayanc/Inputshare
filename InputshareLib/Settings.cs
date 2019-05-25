@@ -6,6 +6,9 @@ namespace InputshareLib
 {
     public static class Settings
     {
+        /// <summary>
+        /// Prevents lag while debugging
+        /// </summary>
         public const bool DEBUG_DISABLEHOOK = false;
 
         public readonly static int ClientListenerQueueSize = 6;
@@ -29,6 +32,7 @@ namespace InputshareLib
         public readonly static ProcessPriorityClass ClientBasePriority = ProcessPriorityClass.RealTime;
 
         public readonly static int ClipboardTextPartSize = 28000;
+        public readonly static int FileTransferPartSize = 28000;
 
         public readonly static Hotkey ServerDefaultExitHotkey = new Hotkey(ScanCode.Q, Hotkey.Modifiers.Ctrl | Hotkey.Modifiers.Shift);
         public readonly static Hotkey ServerDefaultSwitchLocalHotkey = new Hotkey(ScanCode.Z, Hotkey.Modifiers.Shift);

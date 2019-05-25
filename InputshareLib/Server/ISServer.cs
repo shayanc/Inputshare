@@ -10,6 +10,9 @@ using InputshareLib.ProcessMonitor;
 
 namespace InputshareLib.Server
 {
+    /// <summary>
+    /// Inputshare server implementation
+    /// </summary>
     public class ISServer
     {
         public bool Running { get; private set; }
@@ -124,6 +127,12 @@ namespace InputshareLib.Server
             inputMan.ClipboardTextCopied += InputMan_ClipboardTextCopied;
 
             LoadHotkeySettings();
+        }
+
+        public void SendFile(Guid destination, string filePath)
+        {
+            ConnectedClient dest = clientMan.GetClientFromGuid(destination);
+            dest.SendFile(filePath);
         }
 
         private void LoadHotkeySettings()
@@ -250,12 +259,12 @@ namespace InputshareLib.Server
 
         private void ProcMonitor_ProcessExitedFullscreen(object sender, Process proc)
         {
-            //ISLogger.Write($"{proc.ProcessName} exited fullscreen");
+            ISLogger.Write($"{proc.ProcessName} exited fullscreen");
         }
 
         private void ProcMonitor_ProcessEnteredFullscreen(object sender, Process proc)
         {
-            //ISLogger.Write($"{proc.ProcessName} entered fullscreen");
+            ISLogger.Write($"{proc.ProcessName} entered fullscreen");
         }
 
         public ConnectedClientInfo GetInputClient()

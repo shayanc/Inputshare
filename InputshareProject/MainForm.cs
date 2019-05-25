@@ -542,5 +542,19 @@ namespace Inputshare
             cForm = new ClientForm(this);
             cForm.Show();
         }
+
+        //for debug
+        private void Button1_Click(object sender, EventArgs e)
+        {
+            ConnectedClientInfo[] info = server.GetClients();
+
+            foreach(var client in info)
+            {
+                if(client.ClientName == "ENVY15")
+                {
+                    server.SendFile(client.ClientId, @"C:\test.zip");
+                }
+            }
+        }
     }
 }

@@ -3,13 +3,18 @@ using InputshareLib.Net.Messages;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
+using System.Threading.Tasks;
 using static InputshareLib.Settings;
 
 namespace InputshareLib.Server
 {
+    /// <summary>
+    /// Represents a inputshare client
+    /// </summary>
     class ConnectedClient : IDisposable
     {
         public event EventHandler ConnectionError;
@@ -34,10 +39,14 @@ namespace InputshareLib.Server
 
         private CancellationTokenSource cancelToken;
         private BlockingCollection<INetworkMessage> SendQueue = new BlockingCollection<INetworkMessage>();
+        private BlockingCollection<INetworkMessage> LowPrioritySendQueue = new BlockingCollection<INetworkMessage>();
+        private BlockingCollection<INetworkMessage>[] queueCollection;
+        private ManualResetEventSlim fileTransferPartSentEvent = new ManualResetEventSlim(false);
 
 
         public ConnectedClient(Socket soc, string name, Guid id)
         {
+            queueCollection = new BlockingCollection<INetworkMessage>[2] { SendQueue, LowPrioritySendQueue };
             clientSocket = soc;
             ClientName = name;
             ClientGuid = id;
@@ -57,9 +66,20 @@ namespace InputshareLib.Server
             {
                 while (!cancelToken.IsCancellationRequested)
                 {
-                    INetworkMessage msg = SendQueue.Take(cancelToken.Token);
+                    INetworkMessage msg;
+
+                    if (SendQueue.Count != 0)                                           //if there are items waiting in the normal priority queue, send that item
+                        msg = SendQueue.Take();
+                    else if (LowPrioritySendQueue.Count != 0)                           //else if normal queue is empty, and there is an item in the low priorty queue, send that item
+                        msg = LowPrioritySendQueue.Take();
+                    else
+                        BlockingCollection<INetworkMessage>.TakeFromAny(queueCollection, out msg);       //if both queues are empty, wait for either queue to receive an item
+
                     byte[] data = msg.ToBytes();
                     clientSocket.Send(data);
+
+                    if (msg.Type == MessageType.FileTransferPart)   //tell the send file thread that a part has been sent
+                        fileTransferPartSentEvent.Set();
                 }
             }
             catch (ObjectDisposedException)
@@ -69,12 +89,13 @@ namespace InputshareLib.Server
             catch (OperationCanceledException)
             {
 
-            }catch(Exception ex)
+            }
+            catch (Exception ex)
             {
-                //ISLogger.Write("Connection error on {0}: {1}", ClientName, ex.Message);
+                ISLogger.Write($"{ClientName} send thread error: {ex.Message}");
                 OnConnectionError();
             }
-            
+
         }
 
         public static ConnectedClient LocalHost;
@@ -92,6 +113,60 @@ namespace InputshareLib.Server
                 return;
 
             SendMessage(MessageType.Heartbeat);
+        }
+
+        public void SendFile(string source)
+        {
+            if (!Connected)
+                throw new InvalidOperationException("Client not connected");
+
+            //we will need to create a new task to send the file so that the entire file is not written to memory at once
+            //The next part of the file is only loaded when the previous part has been sent
+            Task.Run(new Action(() => { SendFileTask(source); }));
+        }
+
+        private void SendFileTask(string source)
+        {
+            try
+            {
+                bool transComplete = false;
+                FileInfo sourceInfo = new FileInfo(source.ToString());
+                int part = 0;
+                int partCount = (int)sourceInfo.Length / Settings.FileTransferPartSize;
+                Guid transferId = Guid.NewGuid();
+                byte[] chunkBuffer = new byte[Settings.FileTransferPartSize];
+
+                ISLogger.Write($"Debug: Sending file {sourceInfo.Name} ({sourceInfo.Length / 1024}KB) to {ClientName} in {partCount} parts");
+
+                using (FileStream sourceStream = File.OpenRead(source))
+                {
+                    while (part != partCount)   //Keep reading in chunks until the last part of file is reached
+                    {
+                        int bRead;
+                        int bRem;
+
+                        //we need to know how big this chunk will be (if not max size)
+                        if (part != partCount)
+                            bRem = Settings.FileTransferPartSize;
+                        else
+                            bRem = (int)sourceInfo.Length - (part * Settings.FileTransferPartSize);
+
+                        sourceStream.Read(chunkBuffer, 0, bRem);
+                        LowPrioritySendQueue.Add(new FileTransferPartMessage(transferId, partCount, part, chunkBuffer, sourceInfo.Name, sourceInfo.Length));
+                        part++;
+
+                        fileTransferPartSentEvent.Wait();   //Wait until the current part has been sent before sending the next part
+                        fileTransferPartSentEvent.Reset();
+                    }
+
+                    ISLogger.Write($"Sent file {sourceInfo.FullName} ({sourceInfo.Length / 1024}KB) to {ClientName}");
+                }
+            }
+            catch (Exception ex)
+            {
+                ISLogger.Write($"An error occurred while sending file {source.ToString()} to {ClientName}: \n {ex.Message}");
+            }
+
         }
 
         public void SendMessage(MessageType message)
@@ -112,7 +187,7 @@ namespace InputshareLib.Server
 
         public void SetClipboardText(string text)
         {
-            if(!Connected)
+            if (!Connected)
                 throw new InvalidOperationException("Client not connected");
 
             if (text == null)
@@ -126,25 +201,25 @@ namespace InputshareLib.Server
             int partsNeeded = (text.Length / ClipboardTextPartSize);
             int part = 0;
             int strPos = 0;
-            if(partsNeeded == 1)
+            if (partsNeeded == 1)
             {
                 ClipboardSetTextMessage msg = new ClipboardSetTextMessage(text, 1, 1);
                 SendQueue.Add(msg);
                 return;
             }
 
-            while(part <= partsNeeded)
+            while (part <= partsNeeded)
             {
                 int copyLen = ClipboardTextPartSize;
-                if(part == partsNeeded)
+                if (part == partsNeeded)
                 {
-                    if(strPos+copyLen > text.Length)
+                    if (strPos + copyLen > text.Length)
                     {
                         copyLen = text.Length - strPos;
                     }
                 }
                 string str = text.Substring(strPos, copyLen);
-                ClipboardSetTextMessage msg = new ClipboardSetTextMessage(str, part+1, partsNeeded+1);
+                ClipboardSetTextMessage msg = new ClipboardSetTextMessage(str, part + 1, partsNeeded + 1);
                 strPos = strPos + copyLen;
                 SendQueue.Add(msg);
                 part++;
@@ -165,7 +240,7 @@ namespace InputshareLib.Server
                 int bytesIn = clientSocket.EndReceive(ar);
                 int pSize = BitConverter.ToInt32(clientBuffer, 0);
 
-                if(bytesIn == 0)
+                if (bytesIn == 0)
                 {
                     ISLogger.Write("Client {0} lost connection", ClientName);
                     OnConnectionError();
@@ -189,27 +264,29 @@ namespace InputshareLib.Server
                 } while (dRem > 0);
                 MessageType msg = (MessageType)clientBuffer[4];
 
-                switch (msg) {
+                switch (msg)
+                {
                     case MessageType.SetClipboardText:
                         {
                             ClipboardSetTextMessage cbData = ClipboardSetTextMessage.FromBytes(clientBuffer);
 
-                            if(cbData.Part == 1 && cbData.PartCount == 1)
+                            if (cbData.Part == 1 && cbData.PartCount == 1)
                             {
                                 ClipboardTextCopied?.Invoke(this, cbData.Text);
                                 break;
                             }
 
-                            if(cbData.Part == 1)
+                            if (cbData.Part == 1)
                             {
                                 clipboardMsgBuffer = new List<ClipboardSetTextMessage>();
                                 clipboardMsgBuffer.Add(cbData);
-                            }else if(cbData.Part == cbData.PartCount)
+                            }
+                            else if (cbData.Part == cbData.PartCount)
                             {
                                 clipboardMsgBuffer.Add(cbData);
                                 string str = "";
 
-                                foreach(var part in clipboardMsgBuffer)
+                                foreach (var part in clipboardMsgBuffer)
                                 {
                                     str = str + part.Text;
                                 }
@@ -219,10 +296,10 @@ namespace InputshareLib.Server
                             {
                                 clipboardMsgBuffer.Add(cbData);
                             }
-                            
+
                             break;
                         }
-                        
+
                     case MessageType.ClientBoundsBottom:
                         ClientEdgeHit?.Invoke(this, BoundEdge.Bottom);
                         break;
@@ -243,14 +320,15 @@ namespace InputshareLib.Server
             {
                 //This just means that the socket was disposed from elsewhere
                 return;
-            }catch(SocketException ex)
+            }
+            catch (SocketException ex)
             {
                 ISLogger.Write("Connection error on client {0}: {1}", ClientName, ex.Message);
                 OnConnectionError();
                 return;
             }
 
-            
+
         }
 
         private void OnConnectionError()
@@ -264,7 +342,7 @@ namespace InputshareLib.Server
         }
 
         #region IDisposable Support
-        private bool disposedValue = false; 
+        private bool disposedValue = false;
 
         protected virtual void Dispose(bool disposing)
         {
