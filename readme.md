@@ -14,7 +14,7 @@ https://github.com/sbarrac1/Inputshare/releases
 - Client will automatically attempt to reconnect to last server at boot, and can be used to login to windows
 
 ### Server ###
-![](https://github.com/sbarrac1/Inputshare/blob/master/_img/basicserverimg.PNG)
+![](https://github.com/sbarrac1/Inputshare/blob/master/_img/basicserverimg.png)
 ### Client ###
 ![](https://github.com/sbarrac1/Inputshare/blob/master/_img/basicclientimg.PNG)
 
