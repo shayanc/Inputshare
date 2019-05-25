@@ -1,5 +1,6 @@
 ﻿using InputshareLib;
 using System;
+using System.Diagnostics;
 
 namespace InputshareSP
 {
@@ -8,7 +9,7 @@ namespace InputshareSP
         static void Main(string[] args)
         {
             ISLogger.SetLogFileName(@".\logs\InputshareSP.log");
-            ISLogger.EnableConsole = false;
+            ISLogger.EnableConsole = true;
             ISLogger.EnableDebugLog = true;
             ISLogger.EnableLogFile = true;
             AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
@@ -31,6 +32,7 @@ namespace InputshareSP
             
             ISLogger.Write(ex.Message);
             ISLogger.Exit();
+            Process.GetCurrentProcess().Kill(); //kill process which will cause the service to restart the process
         }
     }
 }

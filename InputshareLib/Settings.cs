@@ -6,6 +6,9 @@ namespace InputshareLib
 {
     public static class Settings
     {
+        /// <summary>
+        /// Prevents lag while debugging
+        /// </summary>
         public const bool DEBUG_DISABLEHOOK = false;
 
         public readonly static int ClientListenerQueueSize = 6;
@@ -18,17 +21,18 @@ namespace InputshareLib
         public readonly static int ClientListenerSocketTimeout = 1999;
 
         public readonly static int ServerDefaultMaxClients = 12;
-        public readonly static int ServerClientBufferSize = 32768;
-        public readonly static int ServerClientMaxPacketSize = 32768;
+        public readonly static int ServerClientBufferSize = 32768;  
+        public readonly static int ServerClientMaxPacketSize = 32768;//max size of a packet received by a client
         public readonly static int ServerHeartbeatInterval = 2000;
         public readonly static ProcessPriorityClass ServerBasePriority = ProcessPriorityClass.RealTime;
 
-        public readonly static int ClientSocketBuffer = 32768;
-        public readonly static int ClientMaxPacketSize = 32760;
+        public readonly static int ClientSocketBuffer = 1024*1024;
+        public readonly static int ClientMaxPacketSize = (1024 * 1024)-512;
         public readonly static bool ClientReleaseKeysOnFocus = true;
         public readonly static ProcessPriorityClass ClientBasePriority = ProcessPriorityClass.RealTime;
 
         public readonly static int ClipboardTextPartSize = 28000;
+        public readonly static int FileTransferPartSize = 1024*32; //32KB
 
         public readonly static Hotkey ServerDefaultExitHotkey = new Hotkey(ScanCode.Q, Hotkey.Modifiers.Ctrl | Hotkey.Modifiers.Shift);
         public readonly static Hotkey ServerDefaultSwitchLocalHotkey = new Hotkey(ScanCode.Z, Hotkey.Modifiers.Shift);

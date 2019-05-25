@@ -37,6 +37,9 @@
             this.DisconnectButton = new System.Windows.Forms.Button();
             this.DisconnectedPanel = new System.Windows.Forms.Panel();
             this.ConnectedPanel = new System.Windows.Forms.Panel();
+            this.DownloadFolderTextBox = new System.Windows.Forms.TextBox();
+            this.label1 = new System.Windows.Forms.Label();
+            this.SetDownloadFolderButton = new System.Windows.Forms.Button();
             this.ConnectedPanelAddressLabel = new System.Windows.Forms.Label();
             this.IpcDisconnectedPanel = new System.Windows.Forms.Panel();
             this.IpcConnectingStatusLabel = new System.Windows.Forms.Label();
@@ -124,10 +127,38 @@
             // 
             this.ConnectedPanel.Controls.Add(this.ConnectedPanelAddressLabel);
             this.ConnectedPanel.Controls.Add(this.DisconnectButton);
+            this.ConnectedPanel.Controls.Add(this.IpcDisconnectedPanel);
             this.ConnectedPanel.Location = new System.Drawing.Point(12, 2);
             this.ConnectedPanel.Name = "ConnectedPanel";
-            this.ConnectedPanel.Size = new System.Drawing.Size(229, 111);
+            this.ConnectedPanel.Size = new System.Drawing.Size(229, 142);
             this.ConnectedPanel.TabIndex = 8;
+            // 
+            // DownloadFolderTextBox
+            // 
+            this.DownloadFolderTextBox.Location = new System.Drawing.Point(250, 25);
+            this.DownloadFolderTextBox.Name = "DownloadFolderTextBox";
+            this.DownloadFolderTextBox.ReadOnly = true;
+            this.DownloadFolderTextBox.Size = new System.Drawing.Size(190, 20);
+            this.DownloadFolderTextBox.TabIndex = 13;
+            // 
+            // label1
+            // 
+            this.label1.AutoSize = true;
+            this.label1.Location = new System.Drawing.Point(247, 9);
+            this.label1.Name = "label1";
+            this.label1.Size = new System.Drawing.Size(87, 13);
+            this.label1.TabIndex = 12;
+            this.label1.Text = "Download folder:";
+            // 
+            // SetDownloadFolderButton
+            // 
+            this.SetDownloadFolderButton.Location = new System.Drawing.Point(250, 49);
+            this.SetDownloadFolderButton.Name = "SetDownloadFolderButton";
+            this.SetDownloadFolderButton.Size = new System.Drawing.Size(190, 23);
+            this.SetDownloadFolderButton.TabIndex = 11;
+            this.SetDownloadFolderButton.Text = "Set download folder";
+            this.SetDownloadFolderButton.UseVisualStyleBackColor = true;
+            this.SetDownloadFolderButton.Click += new System.EventHandler(this.SetDownloadFolderButton_Click);
             // 
             // ConnectedPanelAddressLabel
             // 
@@ -142,7 +173,7 @@
             // IpcDisconnectedPanel
             // 
             this.IpcDisconnectedPanel.Controls.Add(this.IpcConnectingStatusLabel);
-            this.IpcDisconnectedPanel.Location = new System.Drawing.Point(12, 2);
+            this.IpcDisconnectedPanel.Location = new System.Drawing.Point(0, 0);
             this.IpcDisconnectedPanel.Name = "IpcDisconnectedPanel";
             this.IpcDisconnectedPanel.Size = new System.Drawing.Size(229, 111);
             this.IpcDisconnectedPanel.TabIndex = 9;
@@ -171,9 +202,11 @@
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(249, 156);
-            this.Controls.Add(this.IpcDisconnectedPanel);
+            this.ClientSize = new System.Drawing.Size(452, 156);
+            this.Controls.Add(this.DownloadFolderTextBox);
+            this.Controls.Add(this.label1);
             this.Controls.Add(this.SwitchToServerButton);
+            this.Controls.Add(this.SetDownloadFolderButton);
             this.Controls.Add(this.ConnectedPanel);
             this.Controls.Add(this.DisconnectedPanel);
             this.Name = "ClientForm";
@@ -186,6 +219,7 @@
             this.IpcDisconnectedPanel.ResumeLayout(false);
             this.IpcDisconnectedPanel.PerformLayout();
             this.ResumeLayout(false);
+            this.PerformLayout();
 
         }
 
@@ -204,5 +238,8 @@
         private System.Windows.Forms.Label IpcConnectingStatusLabel;
         private System.Windows.Forms.Button SwitchToServerButton;
         private System.Windows.Forms.Label ConnectedPanelAddressLabel;
+        private System.Windows.Forms.Button SetDownloadFolderButton;
+        private System.Windows.Forms.TextBox DownloadFolderTextBox;
+        private System.Windows.Forms.Label label1;
     }
 }

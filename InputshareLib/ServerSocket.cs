@@ -1,10 +1,15 @@
 ﻿using InputshareLib.Input;
+using InputshareLib.Net;
 using InputshareLib.Net.Messages;
 using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using static InputshareLib.Settings;
 
 namespace InputshareLib
@@ -16,6 +21,11 @@ namespace InputshareLib
     {
         private Socket tcpSocket;
         public ServerSocketState State { get; private set; } = ServerSocketState.Idle;
+
+        /// <summary>
+        /// The directory where received files will be stored
+        /// </summary>
+        public string FileReceivePath { get; set; } = @"C:\";
 
         public event EventHandler Connected;
         public event EventHandler Disconnected;
@@ -31,6 +41,7 @@ namespace InputshareLib
 
         private Thread socketReceiveThread;
         private CancellationTokenSource cancelToken;
+        private Timer receiveProgressPrintTimer;
 
         private string cName;
         private Guid cId;
@@ -38,6 +49,7 @@ namespace InputshareLib
 
         private bool disconnecting = false;
         private int conId = 0;
+        private List<FileReceiveHandler> receiveHandlers = new List<FileReceiveHandler>();
 
         public void Connect(IPEndPoint address, string name, Guid id)
         {
@@ -46,6 +58,7 @@ namespace InputshareLib
             }
 
             cancelToken = new CancellationTokenSource();
+            receiveProgressPrintTimer = new Timer(ReceiveProgressPrintTimer_Tick, 0, 2000, 2000);
             cName = name;
             disconnecting = false;
             cId = id;
@@ -58,6 +71,15 @@ namespace InputshareLib
             tcpSocket.BeginConnect(address, ConnectCallback, conId);
         }
 
+        //logs the progress of all file tranfers every 2000ms (if any)
+        private void ReceiveProgressPrintTimer_Tick(object sync)
+        {
+            foreach(var handle in receiveHandlers)
+            {
+                ISLogger.Write($"{handle.FileName}: {handle.PercentComplete}%");
+            }
+        }
+
         public void Disconnect()
         {
             if(!IsStateConnected()){
@@ -65,7 +87,7 @@ namespace InputshareLib
             }
             ISLogger.Write($"ServerSocket->Disconnecting");
             disconnecting = true;
-            tcpSocket.Disconnect(true);
+            tcpSocket.Dispose();
             SetState(ServerSocketState.Idle);
             Disconnected?.Invoke(this, null);
         }
@@ -152,9 +174,21 @@ namespace InputshareLib
                 byte[] header = new byte[4];
                 while (!cancelToken.IsCancellationRequested)
                 {
-                    tcpSocket.Receive(header, 4, 0);
+                    int hRem = 4;
+                    int hPos = 0;
+                    do
+                    {
+                        int hIn = tcpSocket.Receive(header, hPos, hRem, 0);   //make sure we read all 4 bytes of header
+                        hPos += hIn;
+                        hRem -= hIn;
+                    } while (hRem > 0);
                     int pSize = BitConverter.ToInt32(header, 0);
 
+                    if(pSize > Settings.ClientMaxPacketSize)
+                    {
+                        OnConnectionError(new Exception("Connection error: Server sent invalid packet size of " + pSize), ServerSocketState.ConnectionError);
+                        return;
+                    }
                     int dRem = pSize;
                     int bPos = 4;
                     do
@@ -163,7 +197,6 @@ namespace InputshareLib
                         bPos += bIn;
                         dRem = pSize - bPos + 4;
                     } while (dRem > 0);
-
                     MessageType cmd = (MessageType)socketBuffer[4];
                     switch (cmd)
                     {
@@ -180,6 +213,10 @@ namespace InputshareLib
                             break;
                         case MessageType.SetClipboardText:
                             ProcessCbCopy(ClipboardSetTextMessage.FromBytes(socketBuffer));
+                            break;
+                        case MessageType.FileTransferPart:
+                            FileTransferPartMessage fileMsg = FileTransferPartMessage.FromBytes(ref socketBuffer);
+                            ReadFilePart(fileMsg);
                             break;
 
                         default:
@@ -203,11 +240,47 @@ namespace InputshareLib
                     return;
 
                 if (!ex.Message.Contains("WSACancelBlockingCall")){
-                    ISLogger.Write("Serversocket error: " + ex.Message);
+                    //ISLogger.Write("Serversocket error: " + ex.Message);
                 }
                 OnConnectionError(ex, ServerSocketState.ConnectionError);
             }
-            
+        }
+
+        private FileReceiveHandler ReceiveHandlerFromTransferId(Guid transferId)
+        {
+            foreach(FileReceiveHandler handler in receiveHandlers)
+            {
+                if (handler.TransferId == transferId)
+                    return handler;
+            }
+            return null;
+        }
+
+        private void ReadFilePart(FileTransferPartMessage fileMsg)
+        {
+            if(fileMsg.PartNumber == 0)
+            {
+                FileReceiveHandler handler = new FileReceiveHandler(fileMsg, FileReceivePath);
+                handler.ReceiveComplete += Handler_ReceiveComplete;
+                receiveHandlers.Add(handler);
+            }
+            else
+            {
+                FileReceiveHandler handle = ReceiveHandlerFromTransferId(fileMsg.FileTransferId);
+                if (handle != null)
+                    handle.AddChunk(fileMsg);
+            }
+        }
+
+        //Called when a file receive handler has complete
+        private void Handler_ReceiveComplete(object sender, EventArgs e)
+        {
+            FileReceiveHandler handler = (FileReceiveHandler)sender;
+
+            if (receiveHandlers.Contains(handler))
+            {
+                receiveHandlers.Remove(handler);
+            }
         }
 
         public void SendCommand(MessageType type)
@@ -287,7 +360,13 @@ namespace InputshareLib
             if (cancelToken.IsCancellationRequested)
                 return;
 
+            foreach(var handler in receiveHandlers.ToArray())
+            {
+                handler.CancelTransfer();
+            }
+
             cancelToken.Cancel();
+            tcpSocket.Close();
             ISLogger.Write("Serversocket error: " + ex.Message);
             SetState(newState);
         }

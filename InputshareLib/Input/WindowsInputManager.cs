@@ -51,6 +51,7 @@ namespace InputshareLib.Input
             {
                 UserInputBlocked = true;
                 GetCursorPos(out mPos);
+                
             }
             else
             {
@@ -200,6 +201,7 @@ namespace InputshareLib.Input
                         //Sometimes the hook reports movements that make no sense (eg 1000X 1000Y) we also want to ingore these.
                         if ((relX == 0 && relY == 0) || relX > 100 || relY > 100 || relX < -100 || relY < -100)
                         {
+                            ISLogger.Write($"Invalid movement: {relX}:{relY}");
                             mouseData = new ISInputData(ISInputCode.IS_UNKNOWN, 0, 0);
                             return;
                         }
@@ -278,6 +280,7 @@ namespace InputshareLib.Input
             if (Running)
                 throw new InvalidOperationException("Windows input manager was already running");
 
+            SetProcessDPIAware();
             hotkeyList = new List<Hotkey>();
 
             mouseCallback = MouseCallback;

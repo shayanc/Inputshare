@@ -97,6 +97,12 @@ namespace Inputshare.Input.Windows
         [DllImport("user32.dll")]
         public static extern bool PostThreadMessageA(uint idThread, uint msg, IntPtr wParam, IntPtr lParam);
 
+        [DllImport("user32.dll")]
+        public static extern bool GetPhysicalCursorPos(out POINT pos);
+
+        [DllImport("user32.dll")]
+        public static extern bool SetProcessDPIAware();
+
         #endregion
 
         #region Structs

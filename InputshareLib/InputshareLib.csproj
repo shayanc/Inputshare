@@ -35,11 +35,15 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="System.Collections.Concurrent" Version="4.3.0" />
     <PackageReference Include="System.Configuration.ConfigurationManager" Version="4.5.0" />
     <PackageReference Include="System.Management" Version="4.6.0-preview4.19212.13" />
   </ItemGroup>
 
   <ItemGroup>
+    <Reference Include="Microsoft.Win32.Registry">
+      <HintPath>..\..\..\..\..\..\..\Program Files\dotnet\packs\Microsoft.WindowsDesktop.App.Ref\3.0.0-preview5-27626-15\ref\netcoreapp3.0\Microsoft.Win32.Registry.dll</HintPath>
+    </Reference>
     <Reference Include="System.Configuration.ConfigurationManager">
       <HintPath>..\..\..\..\..\Program Files\dotnet\packs\Microsoft.WindowsDesktop.App.Ref\3.0.0-preview4-27615-11\ref\netcoreapp3.0\System.Configuration.ConfigurationManager.dll</HintPath>
     </Reference>

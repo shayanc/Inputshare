@@ -46,6 +46,29 @@ namespace InputshareLib.NamedIPC
         public Guid Id { get; }
     }
 
+    [Serializable]
+    public class NIpcSetDownloadFolder
+    {
+        public NIpcSetDownloadFolder(string folder)
+        {
+            Folder = folder;
+        }
+
+        public string Folder { get; }
+    }
+
+    [Serializable]
+    public class NIpcDownloadFolderLocation
+    {
+        public NIpcDownloadFolderLocation(string folder)
+        {
+            Folder = folder;
+        }
+
+        public string Folder { get; }
+    }
+
+
     public enum NIpcBasicMessage
     {
         GetState = 1,
@@ -60,6 +83,7 @@ namespace InputshareLib.NamedIPC
         Disconnected = 10,
         Connected = 11,
         Disconnect = 12,
-        AttemptingConnection = 13
+        AttemptingConnection = 13,
+        RequestDownloadFolder = 14
     }
 }

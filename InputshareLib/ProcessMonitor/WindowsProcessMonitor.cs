@@ -62,6 +62,11 @@ namespace InputshareLib.ProcessMonitor
                 if (!FullscreenApplicationRunning)
                 {
                     CurrentFullscreenProcess = GetForegroundWindowProcess(window);
+
+                    //When explorer/desktop is in focus, it will be detected as fullscreen, we want to ignore this
+                    if (CurrentFullscreenProcess.ToString() == "explorer")
+                        return;
+
                     ProcessEnteredFullscreen?.Invoke(this, CurrentFullscreenProcess);
                     FullscreenApplicationRunning = true;
                 }

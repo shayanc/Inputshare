@@ -91,6 +91,7 @@ namespace Inputshare
 
             ClientListBox.Hide();
             ClientSettingsPanel.Hide();
+            SendClientFileButton.Hide();
 
             trayIcon = new NotifyIcon();
 
@@ -302,16 +303,21 @@ namespace Inputshare
                 Task.Run(new Action(() => {
                     try
                     {
+                        this.Invoke(new Action(() => { ServerPortTextBox.Visible = false; ServerStartButton.Enabled = false; }));
+                        
                         StartServer(port);
                     }catch(Exception ex)
                     {
                         MessageBox.Show("Failed to start server: " + ex.Message);
                         return;
                     }
+                    finally
+                    {
+                        Thread.Sleep(1000);
+                        this.Invoke(new Action(() => { ServerStartButton.Enabled = true; }));
+                    }
                    
-                    this.Invoke(new Action(() => { ServerPortTextBox.Visible = false; ServerStartButton.Enabled = false; }));
-                    Thread.Sleep(1000);
-                    this.Invoke(new Action(() => { ServerStartButton.Enabled = true; }));
+                    
                 }));
             }
         }
@@ -400,9 +406,17 @@ namespace Inputshare
             if (selectedClient == null)
             {
                 selectedClient = GetlocalhostInfo();
-
                 if (selectedClient == null)
                     return;
+            }
+
+            if (selectedClient.ClientId == Guid.Empty)
+            {
+                SendClientFileButton.Hide();
+            }
+            else
+            {
+                SendClientFileButton.Show();
             }
 
             ClientSettingsClientNameLabel.Text = selectedClient.ClientName;
@@ -541,6 +555,34 @@ namespace Inputshare
 
             cForm = new ClientForm(this);
             cForm.Show();
+        }
+
+        //for debug
+        private void Button1_Click(object sender, EventArgs e)
+        {
+        }
+
+        private void ClientListBox_SelectedIndexChanged(object sender, EventArgs e)
+        {
+
+        }
+
+        private void Button2_Click(object sender, EventArgs e)
+        {
+            if(selectedClient != null)
+            {
+
+                OpenFileDialog filed = new OpenFileDialog();
+                filed.Filter = "All files | *.*";
+                filed.Multiselect = true;
+                if (filed.ShowDialog() == DialogResult.OK)
+                {
+                    foreach (string file in filed.FileNames)
+                    {
+                        server.SendFile(selectedClient.ClientId, file);
+                    }
+                }
+            }
         }
     }
 }

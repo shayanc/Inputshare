@@ -26,6 +26,9 @@ namespace InputshareLib.NamedIPC
         public event EventHandler Ipc_Disconnect;
         public event EventHandler RequestedState;
 
+        public event EventHandler<string> RequestedSetDownloadFolder;
+        public event EventHandler RequestedDownloadFolder;
+
         private NamedPipeServerStream serverWrite = new NamedPipeServerStream("IsPipeW", PipeDirection.Out, 1, PipeTransmissionMode.Message, PipeOptions.Asynchronous);
         private NamedPipeServerStream serverRead = new NamedPipeServerStream("IsPipeR", PipeDirection.In, 1, PipeTransmissionMode.Message, PipeOptions.Asynchronous);
 
@@ -73,13 +76,28 @@ namespace InputshareLib.NamedIPC
             {
                 byte[] data = ObjectSerializer.Serialize(obj);
                 //ISLogger.Write($"NamedIPC->sent {data.Length}");
-                serverWrite.Write(data, 0, data.Length);
+                serverWrite.BeginWrite(data, 0, data.Length, ServerWriteCallback, null);
             }
             catch(Exception ex)
             {
                 ISLogger.Write($"NamedIpc->Error writing to pipe: {ex.Message}");
             }
-            
+        }
+
+        private void ServerWriteCallback(IAsyncResult ar)
+        {
+            //TODO
+            try
+            {
+                serverWrite.EndWrite(ar);
+            }
+            catch (Exception) { }            
+        }
+
+        public void SendDownloadFolderLocation(string folder)
+        {
+            SendObject(new NIpcDownloadFolderLocation(folder));
+            ISLogger.Write($"NamedIpc->Sent folder location ({folder}");
         }
 
         public void Stop()
@@ -104,8 +122,8 @@ namespace InputshareLib.NamedIPC
                     throw new Exception("Client disconnected");
                 }
 
-                invokeQueue.Add(new Action(() => { ProcessObject(serverBuff); }));
-                
+                ProcessObject(serverBuff);
+
 
                 serverRead.BeginRead(serverBuff, 0, serverBuff.Length, ServerReadCallback, null);
             }catch(Exception ex)
@@ -126,11 +144,16 @@ namespace InputshareLib.NamedIPC
                 {
                     HandleConnectMessage(obj as NIpcConnectMessage);
                     return;
-                }else if(objType == typeof(NIpcBasicMessage))
+                }
+                else if (objType == typeof(NIpcSetDownloadFolder))
+                {
+                    RequestedSetDownloadFolder?.Invoke(this, (obj as NIpcSetDownloadFolder).Folder);
+                }
+                else if(objType == typeof(NIpcBasicMessage))
                 {
                     HandleBasicMessage((NIpcBasicMessage)obj);
                     return;
-                }  
+                }
             }
             catch (Exception ex)
             {
@@ -145,13 +168,16 @@ namespace InputshareLib.NamedIPC
             {
                 case NIpcBasicMessage.GetState:
                     {
+                        ISLogger.Write($"NamedIpc->Requested state");
                         invokeQueue.Add(new Action(() => { RequestedState?.Invoke(this, null); }));
                         return;
                     }
                 case NIpcBasicMessage.Disconnect:
                     invokeQueue.Add(new Action(() => { Ipc_Disconnect?.Invoke(this, null); }));
                     return;
-
+                case NIpcBasicMessage.RequestDownloadFolder:
+                    RequestedDownloadFolder?.Invoke(this, null);
+                    return;
             }
         }
 

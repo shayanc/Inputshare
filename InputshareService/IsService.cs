@@ -49,21 +49,28 @@ namespace InputshareService
         {
             AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
             string path = AppDomain.CurrentDomain.BaseDirectory;
+            ISLogger.SetLogFileName(path + @"\logs\InputshareService.log");
+            ISLogger.EnableConsole = false;
+            ISLogger.EnableLogFile = true;
 
+            
+            ISLogger.Write("Current path = " + path);
             if(!Directory.Exists(path + "\\logs"))
             {
                 try
                 {
-                    Directory.CreateDirectory(path + "\\logs");
-                }catch(Exception ex)
+                    if(!Directory.Exists(path + "\\logs"))
+                        Directory.CreateDirectory(path + "\\logs");
+
+                    if(!Directory.Exists(path + "\\Downloads"))
+                        Directory.CreateDirectory(path + "\\Downloads");
+                }
+                catch(Exception ex)
                 {
-                    ISLogger.Write($"Failed to create log file folder: {ex.Message}");
+                    ISLogger.Write($"Failed to create file folder: {ex.Message}");
                 }
             }
 
-            ISLogger.SetLogFileName(path + @"\logs\InputshareService.log");
-            ISLogger.EnableConsole = false;
-            ISLogger.EnableLogFile = true;
             ISLogger.Write("Service->Service started");
 
             try
@@ -82,6 +89,8 @@ namespace InputshareService
                 namedIpc.Ipc_Connect += NamedIpc_Connect;
                 namedIpc.RequestedState += NamedIpc_RequestedState;
                 namedIpc.Ipc_Disconnect += NamedIpc_Disconnect;
+                namedIpc.RequestedSetDownloadFolder += NamedIpc_RequestedSetDownloadFolder;
+                namedIpc.RequestedDownloadFolder += NamedIpc_RequestedDownloadFolder;
                 ISLogger.Write("Service->Named IPC server started");
             }catch(Exception ex)
             {
@@ -99,6 +108,7 @@ namespace InputshareService
             EnableSASHKey();
 
             cSocket = new ServerSocket();
+            cSocket.FileReceivePath = path + "\\Downloads";
             spMon = new SpMonitor();
             spMon.StartMonitoring();
             spMon.SpStarted += SpMon_SpStarted;
@@ -167,7 +177,31 @@ namespace InputshareService
             keepRetryingConnection = true;
             Ipc_Connect(lastEp, lastName, lastGuid);
         }
-        
+
+        private void NamedIpc_RequestedDownloadFolder(object sender, EventArgs e)
+        {
+            ISLogger.Write($"NamedIpc->Requested download folder");
+            namedIpc.SendDownloadFolderLocation(cSocket.FileReceivePath);
+        }
+
+        private void NamedIpc_RequestedSetDownloadFolder(object sender, string path)
+        {
+            try
+            {
+                if (!Directory.Exists(path))
+                {
+                    ISLogger.Write($"Failed to set download path to {path}: Directory does not exist");
+                    return;
+                }
+
+                ISLogger.Write($"Setting download folder to {path}");
+                cSocket.FileReceivePath = path;
+            }
+            catch (Exception ex) {
+                ISLogger.Write($"Error setting download folder location: {ex.Message}");
+            }
+        }
+
         private void DelayReconnect(int ms)
         {
             Task.Run(new Action(() => { Thread.Sleep(ms);

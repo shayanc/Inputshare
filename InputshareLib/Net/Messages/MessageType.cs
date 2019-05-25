@@ -18,6 +18,7 @@
         ClientOutOfFocus = 13,
         SetClipboardText = 14,
         ClientEnableReportEdge = 15,
-        ClientDisableReportEdge = 16
+        ClientDisableReportEdge = 16,
+        FileTransferPart = 17
     }
 }
