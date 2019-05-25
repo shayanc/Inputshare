@@ -668,25 +668,32 @@ namespace InputshareLib.Server
 
         private void C_ConnectionError(object sender, EventArgs e)
         {
-            ConnectedClient c = sender as ConnectedClient;
-
-            if(currentInputClient == c)
-            {
-                SwitchLocalInput();
-            }
-
             try
             {
-                inputMan.RemoveClientHotkey(c.ClientGuid);
-            }
-            catch (InvalidOperationException ex)
+                ConnectedClient c = sender as ConnectedClient;
+
+                if (currentInputClient == c)
+                {
+                    SwitchLocalInput();
+                }
+
+                try
+                {
+                    inputMan.RemoveClientHotkey(c.ClientGuid);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    ISLogger.Write("Could not remove hotkey for client {0}: {1}", c.ClientName, ex.Message);
+                }
+                ISLogger.Write("{0} disconnected: Connection error", c.ClientName);
+                clientMan.RemoveClient(c);
+                ClientDisconnected?.Invoke(this, new ClientDisconnectedArgs(CreateClientInfo(c, true), "Connection error"));
+                c.Dispose();
+            }catch(Exception ex)
             {
-                ISLogger.Write("Could not remove hotkey for client {0}: {1}", c.ClientName, ex.Message);
+                ISLogger.Write($"Error occurred while cleaning up client: {ex.Message}");
             }
-            ISLogger.Write("{0} disconnected: Connection error", c.ClientName);
-            clientMan.RemoveClient(c);
-            ClientDisconnected?.Invoke(this, new ClientDisconnectedArgs(CreateClientInfo(c, true), "Connection error"));
-            c.Dispose();
+            
         }
 
         private ConnectedClientInfo CreateClientInfo(ConnectedClient client, bool includeEdges)

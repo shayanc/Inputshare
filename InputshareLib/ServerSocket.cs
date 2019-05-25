@@ -7,6 +7,7 @@ using System.Net.Sockets;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 using static InputshareLib.Settings;
 
 namespace InputshareLib
@@ -154,8 +155,21 @@ namespace InputshareLib
                 byte[] header = new byte[4];
                 while (!cancelToken.IsCancellationRequested)
                 {
-                    tcpSocket.Receive(header, 4, 0);
+                    int hRem = 4;
+                    int hPos = 0;
+                    do
+                    {
+                        int hIn = tcpSocket.Receive(header, hPos, hRem, 0);   //make sure we read all 4 bytes of header
+                        hPos += hIn;
+                        hRem -= hIn;
+                    } while (hRem > 0);
                     int pSize = BitConverter.ToInt32(header, 0);
+
+                    if(pSize > Settings.ClientMaxPacketSize)
+                    {
+                        OnConnectionError(new Exception("Connection error: Server sent invalid packet size of " + pSize), ServerSocketState.ConnectionError);
+                        return;
+                    }
                     int dRem = pSize;
                     int bPos = 4;
                     do
@@ -164,7 +178,6 @@ namespace InputshareLib
                         bPos += bIn;
                         dRem = pSize - bPos + 4;
                     } while (dRem > 0);
-
                     MessageType cmd = (MessageType)socketBuffer[4];
                     switch (cmd)
                     {
@@ -222,6 +235,10 @@ namespace InputshareLib
             {
                 lock (syncLock)
                 {
+                    if(fileMsg.PartNumber == 0 && !File.Exists("C:\\" + fileMsg.FileName))
+                    {
+                        File.Delete("C:\\" + fileMsg.FileName);
+                    }
 
                     //TODO
                     using (FileStream fs = File.Open("C:\\" + fileMsg.FileName, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None))
@@ -332,6 +349,7 @@ namespace InputshareLib
                 return;
 
             cancelToken.Cancel();
+            tcpSocket.Close();
             ISLogger.Write("Serversocket error: " + ex.Message);
             SetState(newState);
         }

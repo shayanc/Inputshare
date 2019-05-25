@@ -70,12 +70,12 @@ namespace InputshareLib.Server
                 {
                     INetworkMessage msg;
 
-                    if (SendQueue.Count != 0)                                           //if there are items waiting in the normal priority queue, send that item
+                    if (SendQueue.Count != 0)            //if there are items waiting in the normal priority queue, send that item
                         msg = SendQueue.Take();
-                    else if (LowPrioritySendQueue.Count != 0)                           //else if normal queue is empty, and there is an item in the low priorty queue, send that item
+                    else if (LowPrioritySendQueue.Count != 0)    //else if normal queue is empty, and there is an item in the low priorty queue, send that item
                         msg = LowPrioritySendQueue.Take();
                     else
-                        BlockingCollection<INetworkMessage>.TakeFromAny(queueCollection, out msg);       //if both queues are empty, wait for either queue to receive an item
+                        BlockingCollection<INetworkMessage>.TakeFromAny(queueCollection, out msg, cancelToken.Token);    //if both queues are empty, wait for either queue to receive an item
 
                     byte[] data = msg.ToBytes();
                     clientSocket.Send(data);
@@ -148,7 +148,7 @@ namespace InputshareLib.Server
                 {
                     ISLogger.Write("File hash: " + MD5.Create().ComputeHash(sourceStream).ToHashString()); 
                     sourceStream.Seek(0, SeekOrigin.Begin); //md5.computhash actually moves the position of the filestream, so we need to reset it
-                    while (fileRem > 0)   //Keep reading in chunks until the last part of file is reached
+                    while (fileRem > 0 && !cancelToken.IsCancellationRequested)   //Keep reading in chunks until the last part of file is reached
                     {
                         int pSize = fileRem;
 
@@ -162,13 +162,21 @@ namespace InputshareLib.Server
                         filePos += pSize;
                         fileRem -= pSize;
                         LowPrioritySendQueue.Add(new FileTransferPartMessage(transferId, partCount, part, chunkBuffer, sourceInfo.Name, sourceInfo.Length));
-                        fileTransferPartSentEvent.Wait();   //Wait until the current part has been sent before sending the next part
+                        fileTransferPartSentEvent.Wait(cancelToken.Token);   //Wait until the current part has been sent before sending the next part
                         fileTransferPartSentEvent.Reset();
                         part++;
                     }
 
-                    ISLogger.Write($"Sent file {sourceInfo.FullName} ({sourceInfo.Length / 1024}KB) to {ClientName}");
+                    if (!cancelToken.IsCancellationRequested)
+                        ISLogger.Write($"Sent file {sourceInfo.FullName} ({sourceInfo.Length / 1024}KB) to {ClientName}");
+                    else
+                        ISLogger.Write($"Sending file {sourceInfo.FullName} cancelled");
+                    
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                ISLogger.Write($"Cancelled file transfer with {ClientName}");
             }
             catch (Exception ex)
             {
@@ -246,6 +254,25 @@ namespace InputshareLib.Server
                     return;
 
                 int bytesIn = clientSocket.EndReceive(ar);
+
+                //we need to make sure that the full 4 bytes were read
+                //some issues were caused by the rare case of less than 4 bytes
+                //being read by the client, creating a random packet size value
+                //causing a crash/disconnect
+                if(bytesIn != 4)
+                {
+                    int hPos = bytesIn;
+                    int hRem = 4 - bytesIn;
+                    do
+                    {
+                        int hIn = clientSocket.Receive(clientBuffer, hPos, hRem, 0);
+                        hPos += hIn;
+                        hRem -= hIn;
+                    } while (hRem > 0);
+
+                }
+
+
                 int pSize = BitConverter.ToInt32(clientBuffer, 0);
 
                 if (bytesIn == 0)
@@ -335,8 +362,6 @@ namespace InputshareLib.Server
                 OnConnectionError();
                 return;
             }
-
-
         }
 
         private void OnConnectionError()
@@ -344,6 +369,7 @@ namespace InputshareLib.Server
             if (!Connected)
                 return;
 
+            clientSocket.Close();
             Connected = false;
             cancelToken.Cancel();
             ConnectionError?.Invoke(this, null);
