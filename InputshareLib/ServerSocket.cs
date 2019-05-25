@@ -1,6 +1,8 @@
 ﻿using InputshareLib.Input;
+using InputshareLib.Net;
 using InputshareLib.Net.Messages;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -34,6 +36,7 @@ namespace InputshareLib
 
         private Thread socketReceiveThread;
         private CancellationTokenSource cancelToken;
+        private Timer receiveProgressPrintTimer;
 
         private string cName;
         private Guid cId;
@@ -41,6 +44,7 @@ namespace InputshareLib
 
         private bool disconnecting = false;
         private int conId = 0;
+        private List<FileReceiveHandler> receiveHandlers = new List<FileReceiveHandler>();
 
         public void Connect(IPEndPoint address, string name, Guid id)
         {
@@ -49,6 +53,7 @@ namespace InputshareLib
             }
 
             cancelToken = new CancellationTokenSource();
+            receiveProgressPrintTimer = new Timer(ReceiveProgressPrintTimer_Tick, 0, 2000, 2000);
             cName = name;
             disconnecting = false;
             cId = id;
@@ -59,6 +64,14 @@ namespace InputshareLib
             SetState(ServerSocketState.AttemptingConnection);
             conId++;
             tcpSocket.BeginConnect(address, ConnectCallback, conId);
+        }
+
+        private void ReceiveProgressPrintTimer_Tick(object sync)
+        {
+            foreach(var handle in receiveHandlers)
+            {
+                ISLogger.Write($"{handle.FileName}: {handle.PercentComplete}%");
+            }
         }
 
         public void Disconnect()
@@ -225,49 +238,42 @@ namespace InputshareLib
                 }
                 OnConnectionError(ex, ServerSocketState.ConnectionError);
             }
-            
         }
 
-        private object syncLock = new object();
+        private FileReceiveHandler ReceiveHandlerFromTransferId(Guid transferId)
+        {
+            foreach(FileReceiveHandler handler in receiveHandlers)
+            {
+                if (handler.TransferId == transferId)
+                    return handler;
+            }
+            return null;
+        }
+
         private void ReadFilePart(FileTransferPartMessage fileMsg)
         {
-            try
+            if(fileMsg.PartNumber == 0)
             {
-                lock (syncLock)
-                {
-                    if(fileMsg.PartNumber == 0 && !File.Exists("C:\\" + fileMsg.FileName))
-                    {
-                        File.Delete("C:\\" + fileMsg.FileName);
-                    }
-
-                    //TODO
-                    using (FileStream fs = File.Open("C:\\" + fileMsg.FileName, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None))
-                    {
-                        int offset = 0;
-                        if (fileMsg.PartNumber != 0)
-                            offset = fileMsg.PartNumber * Settings.FileTransferPartSize;
-
-                        fs.Position = (long)offset;
-
-                        fs.Write(fileMsg.PartData, 0, fileMsg.PartData.Length);
-                        fs.Close();
-                    }
-
-
-                    if (fileMsg.PartCount == fileMsg.PartNumber)
-                    {
-                        using (FileStream fs = File.Open("C:\\" + fileMsg.FileName, FileMode.OpenOrCreate, FileAccess.Read, FileShare.None))
-                        {
-                            ISLogger.Write("File hash: " + MD5.Create().ComputeHash(fs).ToHashString());
-                            fs.Close();
-                        }
-                    }
-                }
-               
-
-            }catch(Exception ex)
+                FileReceiveHandler handler = new FileReceiveHandler(fileMsg);
+                handler.ReceiveComplete += Handler_ReceiveComplete;
+                receiveHandlers.Add(handler);
+            }
+            else
             {
-                ISLogger.Write($"An error occurred while reading file from server: {ex.Message}");
+                FileReceiveHandler handle = ReceiveHandlerFromTransferId(fileMsg.FileTransferId);
+                if (handle != null)
+                    handle.AddChunk(fileMsg);
+            }
+        }
+
+        //Called when a file receive handler has complete
+        private void Handler_ReceiveComplete(object sender, EventArgs e)
+        {
+            FileReceiveHandler handler = (FileReceiveHandler)sender;
+
+            if (receiveHandlers.Contains(handler))
+            {
+                receiveHandlers.Remove(handler);
             }
         }
 
@@ -347,6 +353,11 @@ namespace InputshareLib
         {
             if (cancelToken.IsCancellationRequested)
                 return;
+
+            foreach(var handler in receiveHandlers)
+            {
+                handler.CancelTransfer();
+            }
 
             cancelToken.Cancel();
             tcpSocket.Close();

@@ -552,7 +552,7 @@ namespace Inputshare
             {
                 if(client.ClientName == "ENVY15")
                 {
-                    server.SendFile(client.ClientId, @"C:\test.zip");
+                    server.SendFile(client.ClientId, @"C:\test.txt");
                 }
             }
         }
@@ -563,7 +563,7 @@ namespace Inputshare
 
             foreach (var client in info)
             {
-                if (client.ClientName == "LINX10")
+                if (client.ClientName == "ENVY15")
                 {
                     server.SendFile(client.ClientId, @"C:\test.zip");
                 }
