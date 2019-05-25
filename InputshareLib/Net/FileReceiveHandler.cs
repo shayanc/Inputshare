@@ -16,17 +16,18 @@ namespace InputshareLib.Net
         public bool Complete { get; private set; }
         public string FileName { get; private set; }
         public Guid TransferId { get; private set; }
+        public string FolderPath { get; private set; }
 
         public event EventHandler ReceiveComplete;
-
         public CancellationTokenSource ReceiveCancelToken { get; } = new CancellationTokenSource();
         private BlockingCollection<FileTransferPartMessage> messageQueue = new BlockingCollection<FileTransferPartMessage>();
 
         private FileStream fileWriteStream;
         private Task receiveTask;
 
-        public FileReceiveHandler(FileTransferPartMessage firstPart)
+        public FileReceiveHandler(FileTransferPartMessage firstPart, string folderPath)
         {
+            FolderPath = folderPath;
             TransferId = firstPart.FileTransferId;
             FileName = firstPart.FileName;
             Complete = false;
@@ -40,16 +41,14 @@ namespace InputshareLib.Net
         {
             try
             {
-                    fileWriteStream = new FileStream("C:\\" + FileName, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None);
-                    fileWriteStream.Seek(0, SeekOrigin.Begin);
-                
-                ISLogger.Write($"Created file C:\\{FileName}");
+                ISLogger.Write($"Downloading {FileName} to {FolderPath + "\\" + FileName}");
+                fileWriteStream = new FileStream(FolderPath + "\\" + FileName, FileMode.OpenOrCreate, FileAccess.Write, FileShare.Read);
+                fileWriteStream.Seek(0, SeekOrigin.Begin);
 
-                while(!Complete && !ReceiveCancelToken.IsCancellationRequested)
+                while (!Complete && !ReceiveCancelToken.IsCancellationRequested)
                 {
                     FileTransferPartMessage msg = messageQueue.Take(ReceiveCancelToken.Token);
-
-                    if(msg.PartNumber == 0)
+                    if (msg.PartNumber == 0)
                         fileWriteStream.Position = 0;
                     else
                         fileWriteStream.Position = msg.PartNumber * Settings.FileTransferPartSize;
@@ -57,7 +56,7 @@ namespace InputshareLib.Net
                     fileWriteStream.Write(msg.PartData, 0, msg.PartData.Length);
 
                     if (msg.PartNumber != 0)
-                        PercentComplete = ((double)msg.PartNumber / (double)msg.PartCount)*100;
+                        PercentComplete = ((double)msg.PartNumber / (double)msg.PartCount) * 100;
 
                     if (msg.PartNumber == msg.PartCount)
                     {
@@ -66,13 +65,26 @@ namespace InputshareLib.Net
                         OnReceiveComplete();
                     }
                 }
+            }
+            catch (OperationCanceledException)
+            {
+                ISLogger.Write($"File tranfer {FileName} cancelled");
+                fileWriteStream.Dispose();
+
+                //we want to delete the file if cancelled
+                try {
+                    if (File.Exists(FolderPath + "\\" + FileName))
+                    {
+                        File.Delete(FolderPath + "\\" + FileName);
+                    }
+                }catch(Exception) { }
+
             }catch(Exception ex) {
+                
                 ISLogger.Write($"FileReceiveHandler->An error occurred while receiving file '{FileName}': {ex.Message}");
                 ISLogger.Write(ex.StackTrace);
-            }
-            finally
-            {
                 fileWriteStream.Dispose();
+                ReceiveComplete?.Invoke(this, null);
             }
         }
 
@@ -80,7 +92,7 @@ namespace InputshareLib.Net
         {
             ISLogger.Write($"Received file {FileName}");
 
-            using(FileStream fs = new FileStream("C:\\" + FileName, FileMode.OpenOrCreate, FileAccess.Read, FileShare.None))
+            using(FileStream fs = new FileStream(FolderPath + "\\" + FileName, FileMode.OpenOrCreate, FileAccess.Read, FileShare.Read))
             {
                 ISLogger.Write($"File hash: " + MD5.Create().ComputeHash(fs).ToHashString());
             }
@@ -91,6 +103,7 @@ namespace InputshareLib.Net
         public void CancelTransfer()
         {
             ReceiveCancelToken.Cancel();
+            ReceiveComplete?.Invoke(this, null);
         }
 
         public void AddChunk(FileTransferPartMessage chunk)

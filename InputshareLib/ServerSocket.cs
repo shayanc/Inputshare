@@ -22,6 +22,11 @@ namespace InputshareLib
         private Socket tcpSocket;
         public ServerSocketState State { get; private set; } = ServerSocketState.Idle;
 
+        /// <summary>
+        /// The directory where received files will be stored
+        /// </summary>
+        public string FileReceivePath { get; set; } = @"C:\";
+
         public event EventHandler Connected;
         public event EventHandler Disconnected;
         public event EventHandler ConnectionFailed;
@@ -66,6 +71,7 @@ namespace InputshareLib
             tcpSocket.BeginConnect(address, ConnectCallback, conId);
         }
 
+        //logs the progress of all file tranfers every 2000ms (if any)
         private void ReceiveProgressPrintTimer_Tick(object sync)
         {
             foreach(var handle in receiveHandlers)
@@ -254,7 +260,7 @@ namespace InputshareLib
         {
             if(fileMsg.PartNumber == 0)
             {
-                FileReceiveHandler handler = new FileReceiveHandler(fileMsg);
+                FileReceiveHandler handler = new FileReceiveHandler(fileMsg, FileReceivePath);
                 handler.ReceiveComplete += Handler_ReceiveComplete;
                 receiveHandlers.Add(handler);
             }
@@ -354,7 +360,7 @@ namespace InputshareLib
             if (cancelToken.IsCancellationRequested)
                 return;
 
-            foreach(var handler in receiveHandlers)
+            foreach(var handler in receiveHandlers.ToArray())
             {
                 handler.CancelTransfer();
             }

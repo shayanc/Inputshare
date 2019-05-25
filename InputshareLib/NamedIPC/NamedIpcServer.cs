@@ -26,6 +26,8 @@ namespace InputshareLib.NamedIPC
         public event EventHandler Ipc_Disconnect;
         public event EventHandler RequestedState;
 
+        public event EventHandler<string> RequestedSetDownloadFolder;
+
         private NamedPipeServerStream serverWrite = new NamedPipeServerStream("IsPipeW", PipeDirection.Out, 1, PipeTransmissionMode.Message, PipeOptions.Asynchronous);
         private NamedPipeServerStream serverRead = new NamedPipeServerStream("IsPipeR", PipeDirection.In, 1, PipeTransmissionMode.Message, PipeOptions.Asynchronous);
 
@@ -130,7 +132,10 @@ namespace InputshareLib.NamedIPC
                 {
                     HandleBasicMessage((NIpcBasicMessage)obj);
                     return;
-                }  
+                }else if(objType == typeof(NIpcSetDownloadFolder))
+                {
+                    invokeQueue.Add(new Action(() => { RequestedSetDownloadFolder?.Invoke(this, (obj as NIpcSetDownloadFolder).Folder); }));
+                }
             }
             catch (Exception ex)
             {

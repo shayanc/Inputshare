@@ -41,6 +41,7 @@
             this.IpcDisconnectedPanel = new System.Windows.Forms.Panel();
             this.IpcConnectingStatusLabel = new System.Windows.Forms.Label();
             this.SwitchToServerButton = new System.Windows.Forms.Button();
+            this.SetDownloadFolderButton = new System.Windows.Forms.Button();
             this.DisconnectedPanel.SuspendLayout();
             this.ConnectedPanel.SuspendLayout();
             this.IpcDisconnectedPanel.SuspendLayout();
@@ -122,11 +123,13 @@
             // 
             // ConnectedPanel
             // 
+            this.ConnectedPanel.Controls.Add(this.SetDownloadFolderButton);
             this.ConnectedPanel.Controls.Add(this.ConnectedPanelAddressLabel);
             this.ConnectedPanel.Controls.Add(this.DisconnectButton);
+            this.ConnectedPanel.Controls.Add(this.IpcDisconnectedPanel);
             this.ConnectedPanel.Location = new System.Drawing.Point(12, 2);
             this.ConnectedPanel.Name = "ConnectedPanel";
-            this.ConnectedPanel.Size = new System.Drawing.Size(229, 111);
+            this.ConnectedPanel.Size = new System.Drawing.Size(391, 111);
             this.ConnectedPanel.TabIndex = 8;
             // 
             // ConnectedPanelAddressLabel
@@ -142,7 +145,7 @@
             // IpcDisconnectedPanel
             // 
             this.IpcDisconnectedPanel.Controls.Add(this.IpcConnectingStatusLabel);
-            this.IpcDisconnectedPanel.Location = new System.Drawing.Point(12, 2);
+            this.IpcDisconnectedPanel.Location = new System.Drawing.Point(0, 0);
             this.IpcDisconnectedPanel.Name = "IpcDisconnectedPanel";
             this.IpcDisconnectedPanel.Size = new System.Drawing.Size(229, 111);
             this.IpcDisconnectedPanel.TabIndex = 9;
@@ -167,12 +170,21 @@
             this.SwitchToServerButton.UseVisualStyleBackColor = true;
             this.SwitchToServerButton.Click += new System.EventHandler(this.SwitchToServerButton_Click);
             // 
+            // SetDownloadFolderButton
+            // 
+            this.SetDownloadFolderButton.Location = new System.Drawing.Point(235, 3);
+            this.SetDownloadFolderButton.Name = "SetDownloadFolderButton";
+            this.SetDownloadFolderButton.Size = new System.Drawing.Size(153, 23);
+            this.SetDownloadFolderButton.TabIndex = 11;
+            this.SetDownloadFolderButton.Text = "Set download folder";
+            this.SetDownloadFolderButton.UseVisualStyleBackColor = true;
+            this.SetDownloadFolderButton.Click += new System.EventHandler(this.SetDownloadFolderButton_Click);
+            // 
             // ClientForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(249, 156);
-            this.Controls.Add(this.IpcDisconnectedPanel);
+            this.ClientSize = new System.Drawing.Size(403, 156);
             this.Controls.Add(this.SwitchToServerButton);
             this.Controls.Add(this.ConnectedPanel);
             this.Controls.Add(this.DisconnectedPanel);
@@ -204,5 +216,6 @@
         private System.Windows.Forms.Label IpcConnectingStatusLabel;
         private System.Windows.Forms.Button SwitchToServerButton;
         private System.Windows.Forms.Label ConnectedPanelAddressLabel;
+        private System.Windows.Forms.Button SetDownloadFolderButton;
     }
 }

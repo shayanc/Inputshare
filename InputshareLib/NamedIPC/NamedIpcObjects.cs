@@ -46,6 +46,18 @@ namespace InputshareLib.NamedIPC
         public Guid Id { get; }
     }
 
+    [Serializable]
+    public class NIpcSetDownloadFolder
+    {
+        public NIpcSetDownloadFolder(string folder)
+        {
+            Folder = folder;
+        }
+
+        public string Folder { get; }
+    }
+
+
     public enum NIpcBasicMessage
     {
         GetState = 1,

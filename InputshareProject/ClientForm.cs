@@ -272,5 +272,16 @@ namespace Inputshare
             Exit();
             return;
         }
+
+        private void SetDownloadFolderButton_Click(object sender, EventArgs e)
+        {
+            FolderBrowserDialog fd = new FolderBrowserDialog();
+            if(fd.ShowDialog() == DialogResult.OK && !string.IsNullOrWhiteSpace(fd.SelectedPath))
+            {
+                ipcClient.SendObject(new NIpcSetDownloadFolder(fd.SelectedPath));
+            }
+
+            
+        }
     }
 }

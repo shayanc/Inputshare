@@ -50,8 +50,7 @@
             this.ApplyServerSettingsButton = new System.Windows.Forms.Button();
             this.ClientStartButton = new System.Windows.Forms.Button();
             this.ServerPortTextBox = new System.Windows.Forms.TextBox();
-            this.button1 = new System.Windows.Forms.Button();
-            this.button2 = new System.Windows.Forms.Button();
+            this.SendClientFileButton = new System.Windows.Forms.Button();
             ServerSettingsHeaderLabel = new System.Windows.Forms.Label();
             this.ClientSettingsPanel.SuspendLayout();
             this.SuspendLayout();
@@ -94,6 +93,7 @@
             this.ClientListBox.Name = "ClientListBox";
             this.ClientListBox.Size = new System.Drawing.Size(160, 186);
             this.ClientListBox.TabIndex = 2;
+            this.ClientListBox.SelectedIndexChanged += new System.EventHandler(this.ClientListBox_SelectedIndexChanged);
             // 
             // ClientListHeaderLabel
             // 
@@ -119,7 +119,7 @@
             // label2
             // 
             this.label2.AutoSize = true;
-            this.label2.Location = new System.Drawing.Point(74, 30);
+            this.label2.Location = new System.Drawing.Point(27, 30);
             this.label2.Name = "label2";
             this.label2.Size = new System.Drawing.Size(41, 13);
             this.label2.TabIndex = 6;
@@ -129,7 +129,7 @@
             // 
             this.ClientHotkeyButton.Location = new System.Drawing.Point(3, 46);
             this.ClientHotkeyButton.Name = "ClientHotkeyButton";
-            this.ClientHotkeyButton.Size = new System.Drawing.Size(194, 42);
+            this.ClientHotkeyButton.Size = new System.Drawing.Size(95, 42);
             this.ClientHotkeyButton.TabIndex = 7;
             this.ClientHotkeyButton.Text = "None";
             this.ClientHotkeyButton.UseVisualStyleBackColor = true;
@@ -137,6 +137,7 @@
             // 
             // ClientSettingsPanel
             // 
+            this.ClientSettingsPanel.Controls.Add(this.SendClientFileButton);
             this.ClientSettingsPanel.Controls.Add(this.RightClientListBox);
             this.ClientSettingsPanel.Controls.Add(this.LeftClientListBox);
             this.ClientSettingsPanel.Controls.Add(this.BelowClientListBox);
@@ -276,33 +277,21 @@
             this.ServerPortTextBox.TabIndex = 14;
             this.ServerPortTextBox.Text = "44101";
             // 
-            // button1
+            // SendClientFileButton
             // 
-            this.button1.Location = new System.Drawing.Point(13, 96);
-            this.button1.Name = "button1";
-            this.button1.Size = new System.Drawing.Size(75, 23);
-            this.button1.TabIndex = 15;
-            this.button1.Text = "button1";
-            this.button1.UseVisualStyleBackColor = true;
-            this.button1.Click += new System.EventHandler(this.Button1_Click);
-            // 
-            // button2
-            // 
-            this.button2.Location = new System.Drawing.Point(13, 125);
-            this.button2.Name = "button2";
-            this.button2.Size = new System.Drawing.Size(75, 23);
-            this.button2.TabIndex = 16;
-            this.button2.Text = "button2";
-            this.button2.UseVisualStyleBackColor = true;
-            this.button2.Click += new System.EventHandler(this.Button2_Click);
+            this.SendClientFileButton.Location = new System.Drawing.Point(104, 46);
+            this.SendClientFileButton.Name = "SendClientFileButton";
+            this.SendClientFileButton.Size = new System.Drawing.Size(93, 42);
+            this.SendClientFileButton.TabIndex = 17;
+            this.SendClientFileButton.Text = "Send File(s)";
+            this.SendClientFileButton.UseVisualStyleBackColor = true;
+            this.SendClientFileButton.Click += new System.EventHandler(this.Button2_Click);
             // 
             // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(770, 381);
-            this.Controls.Add(this.button2);
-            this.Controls.Add(this.button1);
             this.Controls.Add(this.ServerPortTextBox);
             this.Controls.Add(this.ClientStartButton);
             this.Controls.Add(this.ApplyServerSettingsButton);
@@ -349,7 +338,6 @@
         private System.Windows.Forms.Button ApplyServerSettingsButton;
         private System.Windows.Forms.Button ClientStartButton;
         private System.Windows.Forms.TextBox ServerPortTextBox;
-        private System.Windows.Forms.Button button1;
-        private System.Windows.Forms.Button button2;
+        private System.Windows.Forms.Button SendClientFileButton;
     }
 }

@@ -302,8 +302,8 @@ namespace InputshareLib.Server
             curMonitor = null;
             if(procMonitor.Monitoring)
                 procMonitor?.StopMonitoring();
+
             procMonitor = null;
-            
             tcpListener = null;
             Running = false;
             ServerStopped?.Invoke(this, null);
@@ -516,12 +516,10 @@ namespace InputshareLib.Server
             ConnectedClientInfo info = CreateClientInfo(c, true);
 
             ClientConnected?.Invoke(this, CreateClientInfo(c, true));
-
-
-
             c.ClipboardTextCopied += C_ClipboardTextCopied;
             c.ConnectionError += C_ConnectionError;
             c.ClientEdgeHit += OnAnyEdgeHit;
+
         }
 
         private void ApplyClientConfig(Guid clientGiud)
@@ -687,6 +685,7 @@ namespace InputshareLib.Server
                 }
                 ISLogger.Write("{0} disconnected: Connection error", c.ClientName);
                 clientMan.RemoveClient(c);
+
                 ClientDisconnected?.Invoke(this, new ClientDisconnectedArgs(CreateClientInfo(c, true), "Connection error"));
                 c.Dispose();
             }catch(Exception ex)
