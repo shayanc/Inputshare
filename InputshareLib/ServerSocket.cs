@@ -4,6 +4,7 @@ using System;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using static InputshareLib.Settings;
@@ -155,7 +156,6 @@ namespace InputshareLib
                 {
                     tcpSocket.Receive(header, 4, 0);
                     int pSize = BitConverter.ToInt32(header, 0);
-
                     int dRem = pSize;
                     int bPos = 4;
                     do
@@ -215,16 +215,39 @@ namespace InputshareLib
             
         }
 
+        private object syncLock = new object();
         private void ReadFilePart(FileTransferPartMessage fileMsg)
         {
             try
             {
-                //TODO
-                using (FileStream fs = File.OpenWrite("C:\\" + fileMsg.FileName))
+                lock (syncLock)
                 {
-                    fs.Seek(fileMsg.PartNumber * Settings.FileTransferPartSize, SeekOrigin.Begin);
-                    fs.Write(fileMsg.PartData, 0, fileMsg.PartData.Length);
+
+                    //TODO
+                    using (FileStream fs = File.Open("C:\\" + fileMsg.FileName, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None))
+                    {
+                        int offset = 0;
+                        if (fileMsg.PartNumber != 0)
+                            offset = fileMsg.PartNumber * Settings.FileTransferPartSize;
+
+                        fs.Position = (long)offset;
+
+                        fs.Write(fileMsg.PartData, 0, fileMsg.PartData.Length);
+                        fs.Close();
+                    }
+
+
+                    if (fileMsg.PartCount == fileMsg.PartNumber)
+                    {
+                        using (FileStream fs = File.Open("C:\\" + fileMsg.FileName, FileMode.OpenOrCreate, FileAccess.Read, FileShare.None))
+                        {
+                            ISLogger.Write("File hash: " + MD5.Create().ComputeHash(fs).ToHashString());
+                            fs.Close();
+                        }
+                    }
                 }
+               
+
             }catch(Exception ex)
             {
                 ISLogger.Write($"An error occurred while reading file from server: {ex.Message}");

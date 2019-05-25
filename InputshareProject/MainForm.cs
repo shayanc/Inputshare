@@ -556,5 +556,18 @@ namespace Inputshare
                 }
             }
         }
+
+        private void Button2_Click(object sender, EventArgs e)
+        {
+            ConnectedClientInfo[] info = server.GetClients();
+
+            foreach (var client in info)
+            {
+                if (client.ClientName == "LINX10")
+                {
+                    server.SendFile(client.ClientId, @"C:\test.zip");
+                }
+            }
+        }
     }
 }

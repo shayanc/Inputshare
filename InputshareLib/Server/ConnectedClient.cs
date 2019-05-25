@@ -6,6 +6,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using static InputshareLib.Settings;
@@ -132,31 +134,37 @@ namespace InputshareLib.Server
                 bool transComplete = false;
                 FileInfo sourceInfo = new FileInfo(source.ToString());
                 int part = 0;
-                int partCount = (int)sourceInfo.Length / Settings.FileTransferPartSize;
+                int partCount = ((int)sourceInfo.Length / Settings.FileTransferPartSize);
+
+                int filePos = 0;
+                int fileRem = (int)sourceInfo.Length; //this will track how many bytes of the file we still need to send
+
                 Guid transferId = Guid.NewGuid();
                 byte[] chunkBuffer = new byte[Settings.FileTransferPartSize];
 
                 ISLogger.Write($"Debug: Sending file {sourceInfo.Name} ({sourceInfo.Length / 1024}KB) to {ClientName} in {partCount} parts");
 
-                using (FileStream sourceStream = File.OpenRead(source))
+                using (FileStream sourceStream = File.Open(source, FileMode.Open, FileAccess.Read, FileShare.None))
                 {
-                    while (part != partCount)   //Keep reading in chunks until the last part of file is reached
+                    ISLogger.Write("File hash: " + MD5.Create().ComputeHash(sourceStream).ToHashString()); 
+                    sourceStream.Seek(0, SeekOrigin.Begin); //md5.computhash actually moves the position of the filestream, so we need to reset it
+                    while (fileRem > 0)   //Keep reading in chunks until the last part of file is reached
                     {
-                        int bRead;
-                        int bRem;
+                        int pSize = fileRem;
 
-                        //we need to know how big this chunk will be (if not max size)
-                        if (part != partCount)
-                            bRem = Settings.FileTransferPartSize;
-                        else
-                            bRem = (int)sourceInfo.Length - (part * Settings.FileTransferPartSize);
+                        if (fileRem > Settings.FileTransferPartSize)
+                            pSize = Settings.FileTransferPartSize;
 
-                        sourceStream.Read(chunkBuffer, 0, bRem);
+                        sourceStream.Position = filePos;
+
+                        chunkBuffer = new byte[pSize];
+                        int bRead = sourceStream.Read(chunkBuffer, 0, pSize);
+                        filePos += pSize;
+                        fileRem -= pSize;
                         LowPrioritySendQueue.Add(new FileTransferPartMessage(transferId, partCount, part, chunkBuffer, sourceInfo.Name, sourceInfo.Length));
-                        part++;
-
                         fileTransferPartSentEvent.Wait();   //Wait until the current part has been sent before sending the next part
                         fileTransferPartSentEvent.Reset();
+                        part++;
                     }
 
                     ISLogger.Write($"Sent file {sourceInfo.FullName} ({sourceInfo.Length / 1024}KB) to {ClientName}");

@@ -1,6 +1,7 @@
 ﻿using System;
 using InputshareLib;
 using System.Windows.Forms;
+using System.IO;
 
 namespace Inputshare
 {
@@ -10,6 +11,16 @@ namespace Inputshare
         [STAThread]
         public static void Main()
         {
+            try
+            {
+                if (!Directory.Exists(Environment.CurrentDirectory + "\\logs"))
+                {
+                    Directory.CreateDirectory(Environment.CurrentDirectory + "\\logs");
+                }
+            }
+            catch (Exception ex) { }
+
+
             ISLogger.SetLogFileName(@".\logs\Inputshare.log");
             ISLogger.EnableConsole = false;
             ISLogger.EnableLogFile = true;
