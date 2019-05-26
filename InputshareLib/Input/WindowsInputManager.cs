@@ -285,11 +285,28 @@ namespace InputshareLib.Input
 
             mouseCallback = MouseCallback;
             keyboardCallback = KeyboardCallback;
-            msgWindow = new WinWindow();
+            
+
+            WinWindow.WinWindowConfig cfg;
+
             if (DEBUG_DISABLEHOOK)
-                msgWindow.CreateWindow(true, null, null, false, true);
+                cfg = new WinWindow.WinWindowConfig() {
+                    keyboardCallback = null,
+                    mouseCallback = null,
+                    monitorClipboard = true,
+                    monitorDesktopSwitches = false
+                };
             else
-                msgWindow.CreateWindow(true, mouseCallback, keyboardCallback, false, true);
+                cfg = new WinWindow.WinWindowConfig()
+                {
+                    keyboardCallback = keyboardCallback,
+                    mouseCallback = mouseCallback,
+                    monitorClipboard = true,
+                    monitorDesktopSwitches = false
+                };
+
+
+            msgWindow = new WinWindow(cfg, true);
             Running = true;
             msgWindow.ClipboardContentChanged += MsgWindow_ClipboardContentChanged;
 

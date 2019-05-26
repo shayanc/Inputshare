@@ -1,4 +1,5 @@
 ﻿using System;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Threading;
@@ -12,7 +13,6 @@ namespace InputshareLib
     /// </summary>
     public class WinWindow
     {
-
         #region native
         [DllImport("user32.dll", SetLastError = true)]
         static extern IntPtr CreateWindowEx(int dwExStyle,
@@ -53,16 +53,6 @@ namespace InputshareLib
             [MarshalAs(UnmanagedType.LPStr)]
             public string lpszClassName;
             public IntPtr hIconSm;
-
-            //Use this function to make a new one with cbSize already filled in.
-            //For example:
-            //var WndClss = WNDCLASSEX.Build()
-            public static WNDCLASSEX Build()
-            {
-                var nw = new WNDCLASSEX();
-                nw.cbSize = Marshal.SizeOf(typeof(WNDCLASSEX));
-                return nw;
-            }
         }
 
         public struct MSG
@@ -148,218 +138,193 @@ namespace InputshareLib
         private const int WM_QUIT = 0x0012;
         private const int WM_CLOSE = 0x0010;
 
-        private IntPtr KeyboardProcID = IntPtr.Zero;
-        private IntPtr MouseProcID = IntPtr.Zero;
-
+        public delegate IntPtr LLHookCallback(int nCode, IntPtr wParam, IntPtr lParam);
+        private delegate IntPtr WndProcCallback(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam);
         private readonly static IntPtr HWND_MESSAGE = new IntPtr(-3);
 
         #endregion
 
-        public delegate IntPtr LLHookCallback(int nCode, IntPtr wParam, IntPtr lParam);
-
-        /// <summary>
-        /// The handle to the window, null if window does not exist
-        /// </summary>
         public IntPtr WindowHandle { get; private set; }
+        public WinWindowConfig WindowConfig { get; }
+        public bool DeadWindow { get; private set; } //This is true if the window is closed
 
-        private delegate IntPtr WndProcCallback(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam);
-        private WndProcCallback callbackDelegate;
-        private WinEventDelegate wEventCallback;
-
-        private WNDCLASSEX wndClass;
-        private Thread procThread;
-        private uint procThreadId;
-        private bool exitThread = false;
-
-        private LLHookCallback mouseCallback;
-        private LLHookCallback keyboardCallback;
-        private IntPtr hWinEventHook;
-
+        //Events
         public event EventHandler ClipboardContentChanged;
         public event EventHandler DesktopSwitched;
 
-        /// <summary>
-        /// Is the keyboard hook active
-        /// </summary>
-        public bool KeyboardHooked { get; private set; }
+        private const string wndName = "ismsgwnd";  //Name of the message only window
 
-        /// <summary>
-        /// Is the mouse hook active
-        /// </summary>
-        public bool MouseHooked { get; private set; }
+        private IntPtr wndCallbackPointer;  //pointer to wndCallback
+        private WndProcCallback wndCallback; //Callback to WndProc(intpr, uint, inptr, inptr)
+        private WNDCLASSEX wndClass; //Window class
+        private uint wndThreadId;  //Unamanged thread ID of window message thread
 
-        /// <summary>
-        /// Is the window monitoring for clipboard changes
-        /// </summary>
+        //Wineventhook variables
+        public bool MonitoringDesktopSwitches { get; private set; }
+        private IntPtr hWinEventHook; //Pointer to the wineventhook
+        private WinEventDelegate winEventCallback;
+
+        //Clipboard variables
         public bool MonitoringClipboard { get; private set; }
 
-        /// <summary>
-        /// Is the window monitoring for desktop changes
-        /// </summary>
-        public bool MonitoringDesktopChanged { get; private set; }
+        //Mouse hook variables
+        public bool MouseHookAssigned { get; private set; }
+        private LLHookCallback mouseProcCallback;
+        private IntPtr mouseProcID = IntPtr.Zero;
 
-        private ManualResetEventSlim windowCreatedEvent;
+        //Keyboard hook variables
+        public bool KeyboardHookAssigned { get; private set; }
+        private LLHookCallback keyboardProcCallback;
+        private IntPtr keyboardProcID = IntPtr.Zero;
+
+        private CancellationToken windowCloseToken;
+
+        private Thread wndDedicatedThread;
+
+        public struct WinWindowConfig
+        {
+            public LLHookCallback mouseCallback;
+            public LLHookCallback keyboardCallback;
+            public bool monitorClipboard;
+            public bool monitorDesktopSwitches;
+        }
 
         /// <summary>
         /// Creates a message only window
         /// </summary>
-        /// <param name="createThread">If true, the window will run on a dedicated thread</param>
-        /// <param name="mouseCallback">Callback to receive mouse messages from the low level mouse hook (WH_MOUSE_LL). set to null to disable mouse hook</param>
-        /// <param name="kbCallback">Callback to receive keyboard messages from the low level keyboard hook (WH_KEYBOARD_LL). set to null to disable keyboard hook</param>
-        /// <param name="monitorDesktops">If true, the DesktopSwitched event will fire whenever the window receives EVENT_SYSTEM_DESKTOPSWITCH from the wineventhook</param>
-        /// <param name="monitorClipboard">If true, ClipboardContentChanged will be fired when clipboard change message is received by the ClipboardFormatListener</param>
-        public void CreateWindow(bool createThread, LLHookCallback mouseCallback, LLHookCallback kbCallback, bool monitorDesktops, bool monitorClipboard)
+        /// <param name="newThread">If true, the window will run on its own thread</param>
+        public WinWindow(WinWindowConfig conf, bool newThread)
         {
-            if (procThread != null)
-            {
-                ISLogger.Write("Warning: Can't create message window: thread already exists");
-                return;
-            }
+            windowCloseToken = new CancellationToken();
+            WindowConfig = conf;
 
-            windowCreatedEvent = new ManualResetEventSlim(false);
-            exitThread = false;
-
-            if (createThread)
+            if (!newThread)
             {
-                procThread = new Thread(() => WndThread(mouseCallback, kbCallback, monitorDesktops, monitorClipboard));
-                procThread.SetApartmentState(ApartmentState.STA);
-                procThread.IsBackground = false;
-                procThread.Name = "WindowOnlyMessageThread";
-                procThread.Start();
+                WindowStart();
             }
             else
             {
-                WndThread(mouseCallback, kbCallback, monitorDesktops, monitorClipboard);
+                wndDedicatedThread = new Thread(WindowStart);
+                wndDedicatedThread.SetApartmentState(ApartmentState.STA); //Window threads must be marked as STA
+                wndDedicatedThread.IsBackground = true;
+                wndDedicatedThread.Name = "MessageOnlyWindowThread";
+                wndDedicatedThread.Start();
             }
-
-            //We want to wait until the window has actually been created before leaving this method to ensure calls are not made before window
-            //is created properly. 2000ms timeout
-            windowCreatedEvent.Wait(2000);
-        }
-
-        public void StartMonitoringClipboard()
-        {
-            if(!(WindowHandle != IntPtr.Zero &&  !MonitoringClipboard)){
-                ISLogger.Write("Warning: Failed to start monitoring clipboard: Window does not exist OR already monitoring clipboard");
-                return;
-            }
-
-            if (!AddClipboardFormatListener(WindowHandle))
-            {
-                ISLogger.Write("Warning: Failed to add clipboard listener: Win32 code {0}", Marshal.GetLastWin32Error().ToString("X"));
-                return;
-            }
-
-            ISLogger.Write("WinWindow->Monitoring for clipboard changes");
-        }
-
-
-        public void StartMonitoringDesktopSwitches()
-        {
-            if (!(WindowHandle != IntPtr.Zero && !MonitoringDesktopChanged))
-            {
-                ISLogger.Write("Warning: cannot monitor desktop switches: window is not created OR already monitoring");
-                return;
-            }
-            wEventCallback = WinEventCallback;
-            hWinEventHook = SetWinEventHook(0x0020, 0x0020, IntPtr.Zero, wEventCallback, 0, 0, 0);
-            MonitoringDesktopChanged = true;
-            ISLogger.Write("WinWindow->Monitoring for desktop switches");
-        }
-    
-        private IntPtr CreateMessageOnlyWindow()
-        {
-            wndClass = new WNDCLASSEX();
-            wndClass.cbSize = Marshal.SizeOf(typeof(WNDCLASSEX));
-            callbackDelegate = WndProc;
-            wndClass.lpfnWndProc = Marshal.GetFunctionPointerForDelegate(callbackDelegate);
-            wndClass.lpszClassName = "isclass";
-            wndClass.cbWndExtra = 0;
-            wndClass.hIcon = IntPtr.Zero;
-            wndClass.hCursor = IntPtr.Zero;
-            wndClass.hIconSm = IntPtr.Zero;
-            wndClass.hbrBackground = IntPtr.Zero;
-            wndClass.hInstance = Process.GetCurrentProcess().Handle;
-            wndClass.lpszMenuName = null;
-            ushort ret = RegisterClassEx(ref wndClass);
-            
-            if(ret == 0)
-            {
-                ISLogger.Write("Failed to create window class: win32 error " + Marshal.GetLastWin32Error());
-                return IntPtr.Zero;
-            }
-
-            IntPtr window = CreateWindowEx(0, wndClass.lpszClassName, "ismsg", 0, 0, 0, 0, 0, HWND_MESSAGE, IntPtr.Zero, Process.GetCurrentProcess().Handle, IntPtr.Zero);
-
-            if(window == IntPtr.Zero)
-            {
-                ISLogger.Write("Failed to create message only window - " + Marshal.GetLastWin32Error());
-                return IntPtr.Zero;
-            }
-
-            return window;
         }
 
         public void CloseWindow()
         {
-            exitThread = true;
-            if(procThread != null)
-            {
-                SendMessage(WindowHandle, WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
-            }
-            UnhookWindowsHookEx(MouseProcID);
-            UnhookWindowsHookEx(KeyboardProcID);
-            UnregisterClassA("isclass", Process.GetCurrentProcess().Handle);
+            if (DeadWindow)
+                throw new InvalidOperationException("Window is already closed");
+
+            SendMessage(WindowHandle, WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
+
+            Thread.Sleep(100);
+            if (MouseHookAssigned) UnhookWindowsHookEx(mouseProcID);
+            if (KeyboardHookAssigned) UnhookWindowsHookEx(keyboardProcID);
+            UnregisterClassA(wndClass.lpszClassName, Process.GetCurrentProcess().Handle);
             WindowHandle = IntPtr.Zero;
-
-        }
-        private void WinEventCallback(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
-        {
-            DesktopSwitched?.Invoke(this, null);
         }
 
-        private void WndThread(LLHookCallback mouseCallback, LLHookCallback kbCallback, bool monitorDesktops, bool monitorClipboard)
+        private void WindowStart()
         {
-            procThreadId = GetCurrentThreadId();
+            RegisterWindowClass();
             WindowHandle = CreateMessageOnlyWindow();
-            windowCreatedEvent.Set();
 
-            if (mouseCallback != null)
+            //Assign hooks from config
+            if (WindowConfig.mouseCallback != null)
+                WndAssignMouseProc(WindowConfig.mouseCallback);
+
+            if (WindowConfig.keyboardCallback != null)
+                WndAssignKeyboardProc(WindowConfig.keyboardCallback);
+
+            if (WindowConfig.monitorDesktopSwitches)
+                WndMonitorDesktopSwitches();
+
+            if (WindowConfig.monitorClipboard)
+                WndMonitorClipboard();
+
+            WndMessageLoop();
+        }
+
+        private IntPtr CreateMessageOnlyWindow()
+        {
+            IntPtr hWnd = CreateWindowEx(0,
+                wndClass.lpszClassName, //The name of the window class to use, we defined this in RegisterWindowClass()
+                wndName,  //name of window
+                0,  //Window style
+                0,  //X pos
+                0,  //Y pos
+                0,  //Width
+                0,  //height
+                HWND_MESSAGE,   //Specify the parent window as HWND_MESSAGE which will prevent a full window from being created
+                IntPtr.Zero,
+                Process.GetCurrentProcess().Handle,
+                IntPtr.Zero
+                );
+
+            if (hWnd == IntPtr.Zero)
             {
-                MouseProcID = SetMouseHook(mouseCallback);
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Failed to create window");
             }
-                
 
-            if (kbCallback != null)
-                KeyboardProcID = SetKeyboardHook(kbCallback);
+            return hWnd;
+        }
 
-            if (monitorDesktops)
-                StartMonitoringDesktopSwitches();
+        private void RegisterWindowClass()
+        {
+            //We need to create a win32 compatible pointer to the WndProc function
+            //Stored as a private variable to prevent garbage collection
+            wndCallback = WndProc;
+            wndCallbackPointer = Marshal.GetFunctionPointerForDelegate(wndCallback);
 
-            if (monitorClipboard)
-                StartMonitoringClipboard();
-
-            if(WindowHandle == IntPtr.Zero)
+            //Creating the window class to register
+            wndClass = new WNDCLASSEX()
             {
-                ISLogger.Write($"Failed to create window: Win32 error {Marshal.GetLastWin32Error().ToString("X")}");
-                return;
+                cbSize = Marshal.SizeOf(typeof(WNDCLASSEX)),
+                lpfnWndProc = wndCallbackPointer,
+                cbWndExtra = 0,
+                hInstance = Process.GetCurrentProcess().Handle,
+                lpszClassName = "isclass",
+
+                //We just need to make sure these values are empty and not filled with random data
+                hIcon = IntPtr.Zero,
+                hIconSm = IntPtr.Zero,
+                hCursor = IntPtr.Zero,
+                hbrBackground = IntPtr.Zero,
+                lpszMenuName = null,
+                cbClsExtra = 0
+            };
+
+            //Unregister class incase it has already been registered
+            UnregisterClassA("isclass", IntPtr.Zero);
+
+            if (RegisterClassEx(ref wndClass) == 0)  //Returns 0 if registerclassex fails
+            {
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Failed to register window class");  //Throw error with code if fails
             }
+        }
 
+        private void WndMessageLoop()
+        {
+            wndThreadId = GetCurrentThreadId();
+            ISLogger.Write("Thread ID: " + wndThreadId);
 
-            while (!exitThread)
+            while (!windowCloseToken.IsCancellationRequested)
             {
                 if (GetMessage(out MSG message, WindowHandle, 0, 0) != 0)
                 {
-                    DispatchMessage(ref message);
+                    DispatchMessage(ref message);   //Dispatch the messages to wndproc / delegate callbacks
                 }
                 else
                 {
-                    ISLogger.Write("Recevied WM_QUIT");
+                    ISLogger.Write($"WinWindow received WM_QUIT");
                     break;
                 }
             }
 
-            ISLogger.Write("Window message loop exited");
+            DeadWindow = true;
+            ISLogger.Write($"WinWindow exited");
         }
 
         private IntPtr WndProc(IntPtr hwnd, uint message, IntPtr wParam, IntPtr lParam)
@@ -367,7 +332,6 @@ namespace InputshareLib
             switch (message)
             {
                 case WM_CLIPBOARDUPDATE:
-                    ISLogger.Write("WinWindow->Clipboard content changed");
                     ClipboardContentChanged?.Invoke(this, null);
                     break;
                 case WM_CLOSE:
@@ -375,31 +339,84 @@ namespace InputshareLib
                     break;
             }
 
+
             return DefWindowProcA(hwnd, message, wParam, lParam);
         }
 
-        private IntPtr SetKeyboardHook(LLHookCallback callback)
+        private void WndWinEventProc(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
         {
-            keyboardCallback = callback;    //Use a private variable so the return delegate does not get garbage collected
-            using (Process curProcess = Process.GetCurrentProcess())
+            DesktopSwitched?.Invoke(this, null);
+        }
+        private void WndAssignMouseProc(LLHookCallback callback)
+        {
+            if (MouseHookAssigned)
+                throw new InvalidOperationException("Mouse hook is already assigned");
+
+            mouseProcCallback = callback;
+            using (Process proc = Process.GetCurrentProcess())
             {
-                using (ProcessModule curModule = curProcess.MainModule)
+                using (ProcessModule mod = proc.MainModule)
                 {
-                    return SetWindowsHookEx(WH_KEYBOARD_LL, keyboardCallback, GetModuleHandle(curModule.ModuleName), 0);
+                    mouseProcID = SetWindowsHookEx(WH_MOUSE_LL, mouseProcCallback, GetModuleHandle(mod.ModuleName), 0);
+
+                    if (mouseProcID == IntPtr.Zero)
+                    {
+                        int error = Marshal.GetLastWin32Error();
+                        throw new Win32Exception(error, "Failed to create mouse hook (" + error + ")");
+                    }
+                    else
+                    {
+                        ISLogger.Write("Mouse hook created");
+                        MouseHookAssigned = true;
+                    }
                 }
             }
         }
 
-        private IntPtr SetMouseHook(LLHookCallback callback)
+        private void WndAssignKeyboardProc(LLHookCallback callback)
         {
-            mouseCallback = callback;
-            using (Process curProcess = Process.GetCurrentProcess())
+            keyboardProcCallback = callback;
+            using (Process proc = Process.GetCurrentProcess())
             {
-                using (ProcessModule curModule = curProcess.MainModule)
+                using (ProcessModule mod = proc.MainModule)
                 {
-                    return SetWindowsHookEx(WH_MOUSE_LL, mouseCallback, GetModuleHandle(curModule.ModuleName), 0);
+                    keyboardProcID = SetWindowsHookEx(WH_KEYBOARD_LL, keyboardProcCallback, GetModuleHandle(mod.ModuleName), 0);
+
+                    if (keyboardProcID == IntPtr.Zero)
+                    {
+                        int error = Marshal.GetLastWin32Error();
+                        throw new Win32Exception(error, "Failed to create keyboard hook (" + error + ")");
+                    }
+                    else
+                    {
+                        ISLogger.Write("keyboard hook created");
+                        KeyboardHookAssigned = true;
+                    }
                 }
             }
+        }
+
+        private void WndMonitorDesktopSwitches()
+        {
+            winEventCallback = WndWinEventProc;
+            hWinEventHook = SetWinEventHook(0x0020, 0x0020, IntPtr.Zero, winEventCallback, 0, 0, 0);
+
+            if (hWinEventHook == IntPtr.Zero)
+            {
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Could not create WinEventHook");
+            }
+
+            MonitoringDesktopSwitches = true;
+        }
+
+        private void WndMonitorClipboard()
+        {
+            if (!AddClipboardFormatListener(WindowHandle))
+            {
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "Could not add clipboard format listener");
+            }
+
+            MonitoringClipboard = true;
         }
     }
 }

@@ -65,8 +65,16 @@ namespace InputshareSP
             }
 
             dDeskThread = new DefaultDesktopThread();
-            winLogonMsgWindow = new WinWindow();
-            winLogonMsgWindow.CreateWindow(true, null, null, true, true);
+            
+            WinWindow.WinWindowConfig cfg = new WinWindow.WinWindowConfig
+            {
+                mouseCallback = null,
+                keyboardCallback = null,
+                monitorDesktopSwitches = true,
+                monitorClipboard = true
+            };
+            winLogonMsgWindow = new WinWindow(cfg, true);
+
             winLogonMsgWindow.DesktopSwitched += WinLogonMsgWindow_DesktopSwitched;
             winLogonMsgWindow.ClipboardContentChanged += WinLogonMsgWindow_ClipboardContentChanged;
 

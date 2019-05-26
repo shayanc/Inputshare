@@ -15,8 +15,15 @@ namespace InputshareLib.ClipboardMonitor
         {
             if (Monitoring)
                 return;
-            cbMonitorWindow = new WinWindow();
-            cbMonitorWindow.CreateWindow(true, null, null, false, true);
+
+            WinWindow.WinWindowConfig cfg = new WinWindow.WinWindowConfig()
+            {
+                mouseCallback = null,
+                keyboardCallback = null,
+                monitorClipboard = true,
+                monitorDesktopSwitches = false
+            };
+            cbMonitorWindow = new WinWindow(cfg, true);
             cbMonitorWindow.ClipboardContentChanged += CbMonitorWindow_ClipboardContentChanged;
         }
 
