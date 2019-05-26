@@ -41,14 +41,11 @@ namespace InputshareLib.Server
 
         private CancellationTokenSource cancelToken;
         private BlockingCollection<INetworkMessage> SendQueue = new BlockingCollection<INetworkMessage>();
-        private BlockingCollection<INetworkMessage> LowPrioritySendQueue = new BlockingCollection<INetworkMessage>();
-        private BlockingCollection<INetworkMessage>[] queueCollection;
         private ManualResetEventSlim fileTransferPartSentEvent = new ManualResetEventSlim(false);
 
 
         public ConnectedClient(Socket soc, string name, Guid id)
         {
-            queueCollection = new BlockingCollection<INetworkMessage>[2] { SendQueue, LowPrioritySendQueue };
             clientSocket = soc;
             ClientName = name;
             ClientGuid = id;
@@ -68,14 +65,7 @@ namespace InputshareLib.Server
             {
                 while (!cancelToken.IsCancellationRequested)
                 {
-                    INetworkMessage msg;
-
-                    if (SendQueue.Count != 0)            //if there are items waiting in the normal priority queue, send that item
-                        msg = SendQueue.Take();
-                    else if (LowPrioritySendQueue.Count != 0)    //else if normal queue is empty, and there is an item in the low priorty queue, send that item
-                        msg = LowPrioritySendQueue.Take();
-                    else
-                        BlockingCollection<INetworkMessage>.TakeFromAny(queueCollection, out msg, cancelToken.Token);    //if both queues are empty, wait for either queue to receive an item
+                    INetworkMessage msg = SendQueue.Take(cancelToken.Token);
 
                     byte[] data = msg.ToBytes();
                     clientSocket.Send(data);
@@ -161,7 +151,7 @@ namespace InputshareLib.Server
                         int bRead = sourceStream.Read(chunkBuffer, 0, pSize);
                         filePos += pSize;
                         fileRem -= pSize;
-                        LowPrioritySendQueue.Add(new FileTransferPartMessage(transferId, partCount, part, chunkBuffer, sourceInfo.Name, sourceInfo.Length));
+                        SendQueue.Add(new FileTransferPartMessage(transferId, partCount, part, chunkBuffer, sourceInfo.Name, sourceInfo.Length));
                         fileTransferPartSentEvent.Wait(cancelToken.Token);   //Wait until the current part has been sent before sending the next part
                         fileTransferPartSentEvent.Reset();
                         part++;

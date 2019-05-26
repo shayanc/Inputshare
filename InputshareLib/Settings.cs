@@ -26,13 +26,14 @@ namespace InputshareLib
         public readonly static int ServerHeartbeatInterval = 2000;
         public readonly static ProcessPriorityClass ServerBasePriority = ProcessPriorityClass.RealTime;
 
-        public readonly static int ClientSocketBuffer = 1024*1024;
-        public readonly static int ClientMaxPacketSize = (1024 * 1024)-512;
+        public readonly static int ClientSocketBuffer = 1024*40;
+        public readonly static int ClientMaxPacketSize = 1024*39;
+        public readonly static int ClientSocketReceiveBuffer = 1024 * 64;
         public readonly static bool ClientReleaseKeysOnFocus = true;
         public readonly static ProcessPriorityClass ClientBasePriority = ProcessPriorityClass.RealTime;
 
         public readonly static int ClipboardTextPartSize = 28000;
-        public readonly static int FileTransferPartSize = 1024*32; //32KB
+        public readonly static int FileTransferPartSize = 1024*32; //size of file chunks
 
         public readonly static Hotkey ServerDefaultExitHotkey = new Hotkey(ScanCode.Q, Hotkey.Modifiers.Ctrl | Hotkey.Modifiers.Shift);
         public readonly static Hotkey ServerDefaultSwitchLocalHotkey = new Hotkey(ScanCode.Z, Hotkey.Modifiers.Shift);

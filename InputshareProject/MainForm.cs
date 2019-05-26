@@ -202,7 +202,7 @@ namespace Inputshare
 
         private void Server_InputClientSwitched(object sender, EventArgs e)
         {
-            ISLogger.Write("Current client: " + server.GetInputClient().ClientName);
+            //ISLogger.Write("Current client: " + server.GetInputClient().ClientName);
         }
 
         private void ClientListBox_MouseClick(object sender, System.Windows.Forms.MouseEventArgs e)

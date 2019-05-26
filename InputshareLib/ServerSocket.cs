@@ -64,6 +64,7 @@ namespace InputshareLib
             cId = id;
             tcpSocket = new Socket(SocketType.Stream, ProtocolType.Tcp);
             tcpSocket.NoDelay = true;
+            tcpSocket.ReceiveBufferSize = Settings.ClientSocketReceiveBuffer;
             serverAddress = address;
             ISLogger.Write($"ServerSocket->Connecting to {address.ToString()}");
             SetState(ServerSocketState.AttemptingConnection);
@@ -174,6 +175,7 @@ namespace InputshareLib
                 byte[] header = new byte[4];
                 while (!cancelToken.IsCancellationRequested)
                 {
+                    socketBuffer = new byte[Settings.ClientSocketBuffer];
                     int hRem = 4;
                     int hPos = 0;
                     do
@@ -223,6 +225,8 @@ namespace InputshareLib
                             MessageReceived?.Invoke(this, cmd);
                             break;
                     }
+
+                    
                 }
             }catch(ObjectDisposedException )
             {

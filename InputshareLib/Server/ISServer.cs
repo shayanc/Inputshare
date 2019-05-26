@@ -93,7 +93,7 @@ namespace InputshareLib.Server
             tcpListener.Start(port);
 
 
-            SetConsoleText("Current client: localhost");
+           
             
             //We need to determine which OS is being used
             OSHelper.Os os = OSHelper.GetOsVersion();
@@ -434,7 +434,6 @@ namespace InputshareLib.Server
                 outManager.ReleaseAllKeys();
 
             inputMan.BlockUserInput(false);
-            SetConsoleText("Current client: localhost");
             InputClientSwitched?.Invoke(this, null);
         }
 
@@ -462,7 +461,6 @@ namespace InputshareLib.Server
                         outManager.ReleaseAllKeys();
 
                     inputMan.BlockUserInput(true);
-                    SetConsoleText("Current client: " + c.ClientName);
                     InputClientSwitched?.Invoke(this, null);
                     return;
                 }
@@ -470,15 +468,6 @@ namespace InputshareLib.Server
 
             //inputMan.RemoveClientHotkey(client);
             ISLogger.Write("Could not switch input to client... client not found");
-        }
-
-        private void SetConsoleText(string text)
-        {
-            try
-            {
-                //Console.Title = text;
-            }
-            catch (Exception) { }
         }
 
         private void TcpListener_ClientConnected(object sender, ClientConnectedArgs e)
