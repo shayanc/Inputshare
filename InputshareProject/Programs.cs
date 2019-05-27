@@ -2,6 +2,7 @@
 using InputshareLib;
 using System.Windows.Forms;
 using System.IO;
+using System.Threading;
 
 namespace Inputshare
 {
@@ -18,20 +19,17 @@ namespace Inputshare
                     Directory.CreateDirectory(Environment.CurrentDirectory + "\\logs");
                 }
             }
-            catch (Exception ex) { }
+            catch (Exception) { }
+
 
             ISLogger.SetLogFileName(@".\logs\Inputshare.log");
             ISLogger.EnableConsole = false;
             ISLogger.EnableLogFile = true;
+            ISLogger.EnableDebugLog = true;
 
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
             Application.Run(new MainForm());
-        }
-
-        private void ReadWinCopyFile(string[] args)
-        {
-
         }
     }
 }

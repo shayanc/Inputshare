@@ -3,6 +3,7 @@ using InputshareLib.Net;
 using InputshareLib.Net.Messages;
 using System;
 using System.Collections.Generic;
+using System.Drawing;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -35,6 +36,7 @@ namespace InputshareLib
         public event EventHandler<ISInputData> InputReceived;
         public event EventHandler<MessageType> MessageReceived;
         public event EventHandler<string> ClipboardTextReceived;
+        public event EventHandler<ContinueDragFileArgs> ContinueFileDrag;
 
         public IPEndPoint serverAddress { get; private set; }
         private byte[] socketBuffer = new byte[Settings.ClientSocketBuffer];
@@ -220,7 +222,9 @@ namespace InputshareLib
                             FileTransferPartMessage fileMsg = FileTransferPartMessage.FromBytes(ref socketBuffer);
                             ReadFilePart(fileMsg);
                             break;
-
+                        case MessageType.ContinueFileDrag:
+                            ReadContinueDragFile(ContinueFileDragMessage.FromBytes(ref socketBuffer));
+                            break;
                         default:
                             MessageReceived?.Invoke(this, cmd);
                             break;
@@ -248,6 +252,12 @@ namespace InputshareLib
                 }
                 OnConnectionError(ex, ServerSocketState.ConnectionError);
             }
+        }
+
+        private void ReadContinueDragFile(ContinueFileDragMessage message)
+        {
+            ISLogger.Write($"Dragging file {message.FileName} ({message.FileSize / 1024}KB)");
+            ContinueFileDrag?.Invoke(this, new ContinueDragFileArgs(message.FileName, message.FileSize, message.FileIcon));
         }
 
         private FileReceiveHandler ReceiveHandlerFromTransferId(Guid transferId)
@@ -419,5 +429,19 @@ namespace InputshareLib
             Dispose(true);
         }
         #endregion
+    }
+
+    public class ContinueDragFileArgs : EventArgs
+    {
+        public ContinueDragFileArgs(string fileName, int fileSize, Bitmap fileIcon)
+        {
+            FileName = fileName;
+            FileSize = fileSize;
+            FileIcon = fileIcon;
+        }
+
+        public string FileName { get; }
+        public int FileSize { get; }
+        public Bitmap FileIcon { get; }
     }
 }

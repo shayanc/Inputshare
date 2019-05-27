@@ -6,6 +6,7 @@ using InputshareLib.Input.Hotkeys;
 using static Inputshare.Input.Windows.WindowHookWin32;
 using static InputshareLib.Settings;
 using System.Collections.Concurrent;
+using System.Threading.Tasks;
 
 namespace InputshareLib.Input
 {
@@ -19,6 +20,9 @@ namespace InputshareLib.Input
         public override event EventHandler<FunctionHotkey> FunctionHotkeyPressed;
         public override event EventHandler<ClientHotkey> ClientHotkeyPressed;
         public override event EventHandler<string> ClipboardTextCopied;
+
+        public override event EventHandler MouseDragStarted;
+        public override event EventHandler MouseDragStopped;
 
         private WinWindow.LLHookCallback mouseCallback;
         private WinWindow.LLHookCallback keyboardCallback;
@@ -186,6 +190,7 @@ namespace InputshareLib.Input
         }
 
         private ISInputData mouseData = new ISInputData();
+        private bool mouseDown = false;
         private void IsThreadHandleMouse(uint wParam, MSLLHOOKSTRUCT mouseStruct)
         {
             int code = (int)wParam;
@@ -205,7 +210,6 @@ namespace InputshareLib.Input
                             mouseData = new ISInputData(ISInputCode.IS_UNKNOWN, 0, 0);
                             return;
                         }
-
                         mouseData = new ISInputData(ISInputCode.IS_MOUSEMOVERELATIVE, relX, relY);
                         break;
                     }
@@ -280,6 +284,8 @@ namespace InputshareLib.Input
             if (Running)
                 throw new InvalidOperationException("Windows input manager was already running");
 
+
+            //This fixes the issue with mouse input on DPI-Scaled displays
             SetProcessDPIAware();
             hotkeyList = new List<Hotkey>();
 
@@ -291,10 +297,8 @@ namespace InputshareLib.Input
 
             if (DEBUG_DISABLEHOOK)
                 cfg = new WinWindow.WinWindowConfig() {
-                    keyboardCallback = null,
-                    mouseCallback = null,
                     monitorClipboard = true,
-                    monitorDesktopSwitches = false
+
                 };
             else
                 cfg = new WinWindow.WinWindowConfig()
@@ -302,7 +306,6 @@ namespace InputshareLib.Input
                     keyboardCallback = keyboardCallback,
                     mouseCallback = mouseCallback,
                     monitorClipboard = true,
-                    monitorDesktopSwitches = false
                 };
 
 
@@ -337,9 +340,33 @@ namespace InputshareLib.Input
                 GetCursorPos(out mPos);
         }
 
+        private bool mouseLeftState = false;
+        private bool isDragging = false;
+
+        public override bool DragInProgess { get; protected set; }
 
         private IntPtr MouseCallback(int nCode, IntPtr wParam, IntPtr lParam)
         {
+            if ((int)wParam == WM_LMOUSEDOWN)
+            {
+                mouseLeftState = true;
+            }
+            else if ((int)wParam == WM_LMOUSEUP)
+            {
+                mouseLeftState = false;
+
+                if (isDragging)
+                {
+                    isDragging = false;
+                    DragInProgess = false;
+                    Task.Run(() => { MouseDragStopped?.Invoke(this, null); });
+                }
+            }else if((int)wParam == WM_MOUSEMOVE && mouseLeftState && !isDragging)
+            {
+                isDragging = true;
+                DragInProgess = true;
+                Task.Run(() => { MouseDragStarted?.Invoke(this, null); });
+            }
 
             if (UserInputBlocked)
             {

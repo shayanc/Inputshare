@@ -7,6 +7,8 @@ using System.Diagnostics;
 using InputshareLib.CursorMonitor;
 using InputshareLib.Ouput;
 using InputshareLib.ProcessMonitor;
+using System.Drawing;
+using System.IO;
 
 namespace InputshareLib.Server
 {
@@ -30,7 +32,12 @@ namespace InputshareLib.Server
         private IOutputManager outManager;
         private IProcessMonitor procMonitor;
 
+        //todo - this needs to be made to work cross platform!
+        private WinDropTargetWindow dropWindow;
+
         private ConnectedClient currentInputClient = null;
+        private ConnectedClient fileDropTargetClient = null;
+
         public bool LocalInput { get; private set; } = true;
         public int ServerPort { get; private set; }
         public bool EnableMouseSwitchClients { get; private set; } = true;
@@ -92,8 +99,6 @@ namespace InputshareLib.Server
 
             tcpListener.Start(port);
 
-
-           
             
             //We need to determine which OS is being used
             OSHelper.Os os = OSHelper.GetOsVersion();
@@ -106,6 +111,7 @@ namespace InputshareLib.Server
                         curMonitor = new WindowsCursorMonitor();
                         outManager = new WindowsOutputManager();
                         procMonitor = new WindowsProcessMonitor();
+                        dropWindow = new WinDropTargetWindow(); //todo Xplatform
                         break;
                     }
                 default:
@@ -125,8 +131,43 @@ namespace InputshareLib.Server
             inputMan.ClientHotkeyPressed += InputMan_ClientHotkeyPressed;
             inputMan.FunctionHotkeyPressed += InputMan_FunctionHotkeyPressed;
             inputMan.ClipboardTextCopied += InputMan_ClipboardTextCopied;
+            inputMan.MouseDragStarted += InputMan_MouseDragStarted;
+            inputMan.MouseDragStopped += InputMan_MouseDragStopped;
+
+            dropWindow.FileDropped += DropWindow_FileDropped; //todo xplatform
 
             LoadHotkeySettings();
+        }
+
+        private void DropWindow_FileDropped(object sender, FileDroppedEventArgs args)
+        {
+            //Check that the target client exists, and is still connected
+            if(fileDropTargetClient != null && fileDropTargetClient.Connected)
+            {
+                try
+                {
+                    if (File.Exists(args.FilePath))
+                    {
+                        FileInfo info = new FileInfo(args.FilePath);
+                        Bitmap icon = Icon.ExtractAssociatedIcon(info.FullName).ToBitmap();
+                        fileDropTargetClient.SendContinueFileDrag(info.Name, icon, (int)info.Length);
+                        ISLogger.Write($"Sent drag info to {fileDropTargetClient.ClientName}");
+                    }
+                }catch(Exception ex)
+                {
+                    ISLogger.Write($"Error sending file drag operation to {fileDropTargetClient.ClientName}: {ex.Message}");
+                }
+            }
+        }
+
+        private void InputMan_MouseDragStopped(object sender, EventArgs e)
+        {
+            //we want to make sure the drop window is hidden again.
+            dropWindow.SetVisible(false);
+        }
+
+        private void InputMan_MouseDragStarted(object sender, EventArgs e)
+        {
         }
 
         public void SendFile(Guid destination, string filePath)
@@ -283,10 +324,12 @@ namespace InputshareLib.Server
             {
                 throw new InvalidOperationException("Server not running");
             }
+           
 
             ISLogger.Write("Stopping server");
 
-            foreach(ConnectedClient client in clientMan?.AllClients)
+            dropWindow.CloseWindow(); //TODO xplatform
+            foreach (ConnectedClient client in clientMan?.AllClients)
             {
                 clientMan.RemoveClient(client);
                 client.Dispose();
@@ -302,6 +345,8 @@ namespace InputshareLib.Server
             curMonitor = null;
             if(procMonitor.Monitoring)
                 procMonitor?.StopMonitoring();
+
+            
 
             procMonitor = null;
             tcpListener = null;
@@ -650,8 +695,55 @@ namespace InputshareLib.Server
             if (!LocalInput)
                 return;
 
+            
+            if(inputMan.DragInProgess && DoesClientExistAtEdge(ConnectedClient.LocalHost, edge))
+            {//If the user is dragging something to a client edge, we need to know if it is a file or not...
+                //We need to move the drop target window over the cursor so that the we can see what is being dragged (if anything)
+
+                //If the user was dragging a file, the dropwindow will fire its FileDropped event, which we can then handle.
+                //store the target client for if the event is fired
+                fileDropTargetClient = GetClientExistAtEdge(ConnectedClient.LocalHost, edge);
+                dropWindow.MoveToCursorPosition();
+                
+            }
+
             OnAnyEdgeHit(ConnectedClient.LocalHost, edge);
         }
+
+        private bool DoesClientExistAtEdge(ConnectedClient client, BoundEdge edge)
+        {
+            switch (edge)
+            {
+                case BoundEdge.Top:
+                    return client.AboveClient != null;
+                case BoundEdge.Bottom:
+                    return client.BelowClient != null;
+                case BoundEdge.Left:
+                    return client.LeftClient != null;
+                case BoundEdge.Right:
+                    return client.RightClient != null;
+            }
+
+            return false;
+        }
+        private ConnectedClient GetClientExistAtEdge(ConnectedClient client, BoundEdge edge)
+        {
+            switch (edge)
+            {
+                case BoundEdge.Top:
+                    return client.AboveClient;
+                case BoundEdge.Bottom:
+                    return client.BelowClient;
+                case BoundEdge.Left:
+                    return client.LeftClient;
+                case BoundEdge.Right:
+                    return client.RightClient; ;
+            }
+
+            return null;
+        }
+
+
 
         private void C_ConnectionError(object sender, EventArgs e)
         {

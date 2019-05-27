@@ -37,6 +37,7 @@
             this.label2 = new System.Windows.Forms.Label();
             this.ClientHotkeyButton = new System.Windows.Forms.Button();
             this.ClientSettingsPanel = new System.Windows.Forms.Panel();
+            this.SendClientFileButton = new System.Windows.Forms.Button();
             this.RightClientListBox = new System.Windows.Forms.ComboBox();
             this.LeftClientListBox = new System.Windows.Forms.ComboBox();
             this.BelowClientListBox = new System.Windows.Forms.ComboBox();
@@ -50,7 +51,6 @@
             this.ApplyServerSettingsButton = new System.Windows.Forms.Button();
             this.ClientStartButton = new System.Windows.Forms.Button();
             this.ServerPortTextBox = new System.Windows.Forms.TextBox();
-            this.SendClientFileButton = new System.Windows.Forms.Button();
             ServerSettingsHeaderLabel = new System.Windows.Forms.Label();
             this.ClientSettingsPanel.SuspendLayout();
             this.SuspendLayout();
@@ -153,6 +153,16 @@
             this.ClientSettingsPanel.Name = "ClientSettingsPanel";
             this.ClientSettingsPanel.Size = new System.Drawing.Size(200, 186);
             this.ClientSettingsPanel.TabIndex = 8;
+            // 
+            // SendClientFileButton
+            // 
+            this.SendClientFileButton.Location = new System.Drawing.Point(104, 46);
+            this.SendClientFileButton.Name = "SendClientFileButton";
+            this.SendClientFileButton.Size = new System.Drawing.Size(93, 42);
+            this.SendClientFileButton.TabIndex = 17;
+            this.SendClientFileButton.Text = "Send File(s)";
+            this.SendClientFileButton.UseVisualStyleBackColor = true;
+            this.SendClientFileButton.Click += new System.EventHandler(this.Button2_Click);
             // 
             // RightClientListBox
             // 
@@ -276,16 +286,6 @@
             this.ServerPortTextBox.Size = new System.Drawing.Size(55, 20);
             this.ServerPortTextBox.TabIndex = 14;
             this.ServerPortTextBox.Text = "44101";
-            // 
-            // SendClientFileButton
-            // 
-            this.SendClientFileButton.Location = new System.Drawing.Point(104, 46);
-            this.SendClientFileButton.Name = "SendClientFileButton";
-            this.SendClientFileButton.Size = new System.Drawing.Size(93, 42);
-            this.SendClientFileButton.TabIndex = 17;
-            this.SendClientFileButton.Text = "Send File(s)";
-            this.SendClientFileButton.UseVisualStyleBackColor = true;
-            this.SendClientFileButton.Click += new System.EventHandler(this.Button2_Click);
             // 
             // MainForm
             // 

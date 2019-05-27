@@ -138,8 +138,7 @@ namespace InputshareLib
         private const int WM_QUIT = 0x0012;
         private const int WM_CLOSE = 0x0010;
 
-        public delegate IntPtr LLHookCallback(int nCode, IntPtr wParam, IntPtr lParam);
-        private delegate IntPtr WndProcCallback(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam);
+       
         private readonly static IntPtr HWND_MESSAGE = new IntPtr(-3);
 
         #endregion
@@ -151,6 +150,11 @@ namespace InputshareLib
         //Events
         public event EventHandler ClipboardContentChanged;
         public event EventHandler DesktopSwitched;
+
+        //Delegates
+        public delegate void FileDragCallbackDelegate(IntPtr hwnd, int idObject, int idChild);
+        public delegate IntPtr LLHookCallback(int nCode, IntPtr wParam, IntPtr lParam);
+        private delegate IntPtr WndProcCallback(IntPtr hwnd, uint msg, IntPtr wParam, IntPtr lParam);
 
         private const string wndName = "ismsgwnd";  //Name of the message only window
 
@@ -181,12 +185,13 @@ namespace InputshareLib
 
         private Thread wndDedicatedThread;
 
-        public struct WinWindowConfig
+        public class WinWindowConfig
         {
-            public LLHookCallback mouseCallback;
-            public LLHookCallback keyboardCallback;
-            public bool monitorClipboard;
-            public bool monitorDesktopSwitches;
+            public LLHookCallback mouseCallback = null;
+            public LLHookCallback keyboardCallback = null;
+            public FileDragCallbackDelegate fileDropStartCallback = null;
+            public bool monitorClipboard = false;
+            public bool monitorDesktopSwitches = false;
         }
 
         /// <summary>
@@ -219,6 +224,7 @@ namespace InputshareLib
 
             SendMessage(WindowHandle, WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
 
+            //Give window time to close
             Thread.Sleep(100);
             if (MouseHookAssigned) UnhookWindowsHookEx(mouseProcID);
             if (KeyboardHookAssigned) UnhookWindowsHookEx(keyboardProcID);
@@ -337,10 +343,13 @@ namespace InputshareLib
                 case WM_CLOSE:
                     PostQuitMessage(0);
                     break;
+                default:
+                    return DefWindowProcA(hwnd, message, wParam, lParam);
+
             }
 
 
-            return DefWindowProcA(hwnd, message, wParam, lParam);
+            return IntPtr.Zero;
         }
 
         private void WndWinEventProc(IntPtr hWinEventHook, uint eventType, IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
@@ -405,6 +414,7 @@ namespace InputshareLib
             {
                 throw new Win32Exception(Marshal.GetLastWin32Error(), "Could not create WinEventHook");
             }
+            ISLogger.Write(hWinEventHook.ToString());
 
             MonitoringDesktopSwitches = true;
         }
@@ -418,5 +428,6 @@ namespace InputshareLib
 
             MonitoringClipboard = true;
         }
+
     }
 }

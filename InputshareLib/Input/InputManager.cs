@@ -11,12 +11,17 @@ namespace InputshareLib.Input
         public abstract event EventHandler<ClientHotkey> ClientHotkeyPressed;
         public abstract event EventHandler<string> ClipboardTextCopied;
 
+        public abstract event EventHandler MouseDragStarted;
+        public abstract event EventHandler MouseDragStopped;
+
         public bool Running { get; protected set; }
         public IEnumerable<Hotkey> AssignedHotkeys { get => hotkeyList.ToArray(); }
         public bool UserInputBlocked { get; protected set; }
 
         protected List<Hotkey> hotkeyList = new List<Hotkey>();
         protected Hotkey.Modifiers currentModifiers = 0;
+
+        public abstract bool DragInProgess { get; protected set; }
 
         public abstract void Start();
         public abstract void Stop();

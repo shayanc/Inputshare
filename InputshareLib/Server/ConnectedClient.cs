@@ -3,6 +3,7 @@ using InputshareLib.Net.Messages;
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Drawing;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -88,6 +89,14 @@ namespace InputshareLib.Server
                 OnConnectionError();
             }
 
+        }
+
+        public void SendContinueFileDrag(string fileName, Bitmap fileIcon, int fileSize)
+        {
+            if (!Connected)
+                throw new InvalidOperationException("Client not connected");
+
+            SendQueue.Add(new ContinueFileDragMessage(fileName, fileIcon, fileSize));
         }
 
         public static ConnectedClient LocalHost;

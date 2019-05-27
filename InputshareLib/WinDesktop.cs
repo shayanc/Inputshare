@@ -46,7 +46,7 @@ namespace InputshareLib
             IntPtr hDesk = GetThreadDesktop(GetCurrentThreadId());
 
             GetUserObjectInformationA(hDesk, 2, null, 0, out int neededLen);
-            IntPtr lpName = Marshal.AllocHGlobal((neededLen/2)+1);
+            IntPtr lpName = Marshal.AllocHGlobal((neededLen / 2) + 1);
             byte[] data = new byte[neededLen];
             if (!GetUserObjectInformationA(hDesk, 2, data, neededLen, out _))
             {

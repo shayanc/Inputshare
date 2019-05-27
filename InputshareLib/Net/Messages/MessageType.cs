@@ -19,6 +19,7 @@
         SetClipboardText = 14,
         ClientEnableReportEdge = 15,
         ClientDisableReportEdge = 16,
-        FileTransferPart = 17
+        FileTransferPart = 17,
+        ContinueFileDrag = 18
     }
 }
