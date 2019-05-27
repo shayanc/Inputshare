@@ -7,6 +7,10 @@ Inputshare server can be run standalone, but the client will require an install 
 
 https://github.com/sbarrac1/Inputshare/releases
 
+## Building ##
+When building with visual studio, make sure the solution is set to build for X86 or X64 (not any-cpu!).
+Build will output to the root project folder \debug32\netcoreapp3.0. (or debug64, release32, release64 depending on build setting)
+
 ## Features ##
 - Switch clients by either a hotkey or moving mouse to client
 - Detect fullscreen games and automatically disable mouse client switching
